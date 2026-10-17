@@ -94,6 +94,120 @@ multi-video `_vN` naming polish + `--force` `.bak` collision handling, then M6
 config precedence completion + logging.
 
 
+**2026-10-17 — ROUND 2 complete on `feat/core-2` (M4 + M5 + cross-lane surfaces).**
+Gates: `ruff` clean, `mypy` strict clean, `pytest` **298 passed** (was 230).
+Live-verified on Windows against real endpoints/ffmpeg: single-URL download +
+skip-on-rerun, `--gif` (real 5 MB GIF + sidecar), `--audio-only` (valid ID3 MP3
+from a synthetic audio source via real ffmpeg; the canonical reacttweet video
+is audio-less and now fails with a clear typed message), yt-dlp fallback chain
+(syndication 404 -> yt-dlp hop, terminal `NO_VIDEO` in one attempt), and the
+stale-yt-dlp warning (59 days old -> warning printed).
+
+### Round-2 delivered
+
+**M4 resilience** — per-item retries (exp backoff 1,2,4,8,16 s x jitter
+0.75-1.25, `--retries` = total attempts, INTEGRITY_MISMATCH restarts at most
+once, waits run through `throttle.gate()` and are cancel-interruptible);
+resolve stage now gated + paced like downloads (docs/03 "gate before every
+remote request"); resolve-stage 429s feed the global pause via
+`ThrottleState.report_pause` (download 429s already did); escalation 3x429/60 s
+-> pause >= 120 s (timestamps kept in ThrottleState); circuit breaker (8
+consecutive failed/partial items, 0 non-failures between -> open; unstarted
+items `SKIPPED_CIRCUIT_OPEN`, recorded incomplete only-if-untracked so
+`retry-failed` picks them up; exit 1); graceful Ctrl+C (`models.CancelToken`,
+engine checks per chunk, orchestrator per item/media, `BatchReport.cancelled`,
+CLI exits 130 after summary, second SIGINT `os._exit(130)`); LINK_EXPIRED
+recovery fixes (round-1 bug: re-resolve used default-best policy — now the
+batch policy; same-object (host+path) resumes `.part`, changed rendition
+restarts clean); engine OSError mapping -> `DISK_FULL`/`WRITE_ERROR` at item
+level; **YtdlpResolver** (resolve-only, library import, injectable
+`ydl_factory` for hermetic tests, error mapping incl. live-observed
+"No video could be found" -> NO_VIDEO) wired into `build_chain` so
+`fallback="auto"` finally means syndication->yt-dlp; stale-yt-dlp warning at
+CLI startup when > 14 days old.
+
+**M5 media completeness** — HLS wired at the marked `is_hls` branch
+(`hls.download_hls` with injected `fetch_text` through the shared client +
+throttle; progress frames -> download_progress events); MP4 fast-path always,
+HLS only when no usable MP4 or the playlist genuinely beats the best MP4:
+sub-720p best-MP4 + ffmpeg present + m3u8 in asset -> fetch master, compare
+RESOLUTION, upgrade only if taller (best-effort, any failure keeps the MP4);
+no-ffmpeg -> best-MP4 degradation when an MP4 exists, else
+`HLS_REQUIRES_FFMPEG` + install hint; `--audio-only` (ffmpeg
+`-vn -c:a libmp3lame -q:a 0`, honest quality note in --help) and `--gif`
+(palettegen/paletteuse 15 fps) via new `media/convert.py`, staged through a
+transient `<stem>.src.mp4` container that is cleaned on success/failure and
+resumes the pipeline if a crashed attempt left it behind; `--force` moves the
+existing final to `<name>.bak` (last bak wins) and discards stale `.part`;
+`_vN` naming verified incl. ext swap (`_v2.mp3`).
+
+**Cross-lane** — `xdl.app.analyze(urls, settings, *, client=None) ->
+list[ResolvedTweet | XdlError]` (async, 1:1 with inputs, no state/file
+writes); `xdl serve` delegates to `xdl.ui.__main__.main()` (flags owned by
+B's argparse; typer stub is pass-through with `add_help_option=False`);
+`xdl config` prints resolved Settings + config-file/db paths (source tracking
+waits for B's config.py machinery); `report/logging.py` does not exist on
+main yet -> marked TODO in `cli.main()` to call `setup_logging(settings)`.
+
+### Round-2 deviations (all deliberate; docs/ are B's this round — fold into the doc sweep)
+
+1. **New ErrorCodes `FFMPEG_REQUIRED`, `TRANSCODE_FAILED`** — docs/08 has no
+   codes for user-requested conversions; additive StrEnum members. B: add to
+   the docs/08 table (FFMPEG_REQUIRED: "--audio-only/--gif needs ffmpeg —
+   install hint", TRANSCODE_FAILED: "ffmpeg failed: stderr tail"), and to any
+   UI error-text table.
+2. **ffmpeg argv now carries explicit `-f mp4|mp3|gif` before `-y`** — the
+   `.part` suffix defeats ffmpeg's extension-based output-format inference
+   (found live; hermetic sims can't catch it). `tests/unit/test_hls.py`'s
+   golden argv updated accordingly (I own tests/unit/**).
+3. **QUALITY_UNAVAILABLE (round-1 note #8) — decision for B's doc sweep**:
+   closest-fit is the shipped behavior and stays; do NOT add a
+   QUALITY_UNAVAILABLE code anywhere. Document in docs/02 select-stage and
+   docs/08: "no variant under a `--quality N` cap -> closest fit (smallest
+   above the cap), not an error".
+4. **`BatchReport.cancelled: bool = False`** (additive) and
+   **`run_batch(..., cancel: CancelToken | None = None)`** — UI may pass its
+   own token later; render an "interrupted" line when `report.cancelled`
+   (CLI exits 130 after the summary).
+5. **`models.CancelToken`** — plain class (`.cancel()`, `.cancelled`); the
+   shared Ctrl+C contract CLI->orchestrator->engine.
+6. **conftest hermetic settings**: `resolver.fallback="none"` (a syndication
+   404 must not fall through to the REAL bundled yt-dlp in tests) +
+   `engine.delay=0.001` (jittered 0.2-0.5 s resolve pacing would slow the
+   suite). UI tests unaffected (own stubs).
+7. **Circuit threshold 8 is a constant in app.py** — if B's config.py wants
+   `engine.circuit_threshold` / backoff knobs, say so in your notes and I'll
+   thread them; until then the docs/08 default is hardwired.
+8. **`mark_tweet_incomplete_if_untracked`** inserts a sentinel row
+   (`file_path = f"{id}.unresolved"`, status incomplete) ONLY when the tweet
+   has zero downloads rows — never clobbers ok history (PK is
+   tweet_id+media_index).
+9. **Convert-mode state anchoring**: an ok row only anchors a path when its
+   suffix matches the requested output ext (an .mp4 row must not anchor an
+   MP3 run). Re-running a completed tweet with a different output mode needs
+   `--force` (skip check fires first) — expected.
+10. **Transcode failures clean the transient `.src.mp4`** (TRANSCODE_FAILED
+    is terminal, the container is not worth keeping); "Output file does not
+    contain any stream" is rewritten to "source has no encodable stream
+    (audio-less video with --audio-only?)".
+11. **`analyze` is async** (`await analyze(...)`) — matches the UI event
+    loop; errors are values (XdlError instances), never raised.
+12. **`xdl serve`** is a pass-through typer stub (`allow_extra_args`,
+    `add_help_option=False`) rewriting `sys.argv` to `["xdl serve", ...]` and
+    calling B's `main()` — one source of truth for flags + the loopback guard.
+
+### Round-2 deferred (smallest-sensible choices)
+
+- `ytdlp_mode = "full"` (yt-dlp-driven downloads) — resolve-only shipped per
+  M4 spec; "full" is a config value that currently behaves as resolve-only.
+- HLS manual segment fallback (`--hls-manual`, docs/04 "rare, optional") —
+  not built; default answer remains "install ffmpeg".
+- Pre-batch free-space check — mid-write ENOSPC is handled (DISK_FULL,
+  item-level); the ahead-of-time warning is not built.
+- Live Ctrl+C matrix run — cancel mechanics covered at engine/app/CLI levels
+  by tests; the manual matrix pass is B's lane this round.
+
+
 ## Agent B notes
 
 ### 2026-10-17 — M1 spike: fixtures + token goldens ready (branch `feat/ui-spike`, uncommitted-to-main checkout: `downloader-agent-b`)
