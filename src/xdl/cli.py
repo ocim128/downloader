@@ -30,9 +30,22 @@ def _version_callback(value: bool) -> None:
         raise typer.Exit
 
 
-@app.callback(invoke_without_command=True)
+@app.callback()
+def _root() -> None:
+    """xdl — download X (Twitter) videos locally.
+
+    Default surface: xdl [OPTIONS] URLS... (see xdl run --help via xdl --help).
+    """
+
+
+# A single-command typer app collapses to top level: `xdl [OPTIONS] URLS...`
+# with normal click option interspersion (`xdl URL -o DIR` works). Subcommands
+# live on `app` and are dispatched from main() when argv[0] names one.
+solo = typer.Typer(help="Download videos from one or many X post URLs.")
+
+
+@solo.command()
 def default(
-    ctx: typer.Context,
     urls: Optional[list[str]] = typer.Argument(None, help="One or more post URLs."),  # noqa: UP045
     file: Optional[Path] = typer.Option(  # noqa: UP045
         None,
@@ -75,8 +88,6 @@ def default(
     ),
 ) -> None:
     """xdl — download X (Twitter) videos locally."""
-    if ctx.invoked_subcommand is not None:
-        return
     _execute(
         urls=urls,
         file=file,
@@ -252,7 +263,12 @@ def main() -> None:
         if hasattr(stream, "reconfigure"):
             with contextlib.suppress(OSError, ValueError):
                 stream.reconfigure(encoding="utf-8")
-    app()
+    args = sys.argv[1:]
+    subcommands = {c.name for c in app.registered_commands if c.name}
+    if not args or args[0] in subcommands or args[0] in ("--help", "-h"):
+        app()  # group: bare/help/subcommand surfaces
+    else:
+        solo()  # default command: xdl [OPTIONS] URLS...
 
 
 if __name__ == "__main__":

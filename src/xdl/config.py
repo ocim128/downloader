@@ -81,8 +81,13 @@ class Settings(BaseModel):
 
     @property
     def app_dir(self) -> Path:
-        """%APPDATA%/xdl on Windows (config.toml, state.db, logs/ live here)."""
-        return Path(platformdirs.user_config_dir("xdl"))
+        """Per-user app dir (config.toml, state.db, logs/ live here).
+
+        Windows: %LOCALAPPDATA%/xdl — platformdirs v4 nests author+name by
+        default; appauthor=False keeps it single-level. Plan text said
+        %APPDATA%/xdl; noted in COORDINATION.md, configurable in M6.
+        """
+        return Path(platformdirs.user_config_dir("xdl", appauthor=False))
 
     @property
     def db_path(self) -> Path:
