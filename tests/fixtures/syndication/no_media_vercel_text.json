@@ -1,0 +1,284 @@
+{
+  "recorded_at": "2026-10-17T05:53:48+00:00",
+  "tweet_id": "1683920951807971329",
+  "source_url": "1683920951807971329",
+  "http_status": 200,
+  "request_token": "42y6zv7ufp",
+  "request_features": "tfw_timeline_list:;tfw_follower_count_sunset:true;tfw_tweet_edit_backend:on;tfw_refsrc_session:on;tfw_fosnr_soft_interventions_enabled:on;tfw_show_birdwatch_pivots_enabled:on;tfw_show_business_verified_badge:on;tfw_duplicate_scribes_to_settings:on;tfw_use_profile_image_shape_enabled:on;tfw_show_blue_verified_badge:on;tfw_legacy_timeline_sunset:true;tfw_show_gov_verified_badge:on;tfw_show_business_affiliate_badge:on;tfw_tweet_edit_frontend:on",
+  "response": {
+    "__typename": "Tweet",
+    "favorite_count": 1702,
+    "lang": "en",
+    "possibly_sensitive": false,
+    "created_at": "2023-07-25T19:23:35.000Z",
+    "display_text_range": [
+      0,
+      213
+    ],
+    "entities": {
+      "urls": [
+        {
+          "display_url": "vercel.com/blog/introduci…",
+          "expanded_url": "https://vercel.com/blog/introducing-react-tweet",
+          "indices": [
+            190,
+            213
+          ],
+          "url": "https://t.co/CMH9A1IGjV"
+        }
+      ]
+    },
+    "id_str": "1683920951807971329",
+    "text": "Introducing `react-tweet`:\n\n◆ 35x less client-side JavaScript than the Twitter &lt;iframe&gt;\n◆ React Server Components for built-in data fetching\n◆ Works with Next.js, Vite, CRA, and more\n\nhttps://t.co/CMH9A1IGjV",
+    "user": {
+      "id_str": "4686835494",
+      "name": "Vercel",
+      "screen_name": "vercel",
+      "is_blue_verified": false,
+      "profile_image_shape": "Square",
+      "verified": false,
+      "verified_type": "Business",
+      "profile_image_url_https": "https://pbs.twimg.com/profile_images/1767351110228918272/3Pndc5OT_normal.png"
+    },
+    "edit_control": {
+      "edit_tweet_ids": [
+        "1683920951807971329"
+      ],
+      "editable_until_msecs": "1690316615000",
+      "edits_remaining": "5",
+      "is_edit_eligible": true
+    },
+    "conversation_count": 67,
+    "news_action_type": "conversation",
+    "card": {
+      "card_platform": {
+        "platform": {
+          "audience": {
+            "name": "production"
+          },
+          "device": {
+            "name": "iPhone",
+            "version": "13"
+          }
+        }
+      },
+      "name": "summary_large_image",
+      "url": "https://t.co/CMH9A1IGjV",
+      "binding_values": {
+        "photo_image_full_size_large": {
+          "image_value": {
+            "height": 419,
+            "url": "https://pbs.twimg.com/card_img/2109933664515522560/JUkixJ-J?format=png&name=800x419",
+            "width": 800
+          },
+          "type": "IMAGE"
+        },
+        "thumbnail_image": {
+          "image_value": {
+            "height": 146,
+            "url": "https://pbs.twimg.com/card_img/2109933664515522560/JUkixJ-J?format=png&name=280x150",
+            "width": 280
+          },
+          "type": "IMAGE"
+        },
+        "description": {
+          "string_value": "Embed tweets into your React application without sacrificing performance.",
+          "type": "STRING"
+        },
+        "domain": {
+          "string_value": "vercel.com",
+          "type": "STRING"
+        },
+        "thumbnail_image_large": {
+          "image_value": {
+            "height": 314,
+            "url": "https://pbs.twimg.com/card_img/2109933664515522560/JUkixJ-J?format=png&name=600x600",
+            "width": 600
+          },
+          "type": "IMAGE"
+        },
+        "summary_photo_image_small": {
+          "image_value": {
+            "height": 202,
+            "url": "https://pbs.twimg.com/card_img/2109933664515522560/JUkixJ-J?format=png&name=386x202",
+            "width": 386
+          },
+          "type": "IMAGE"
+        },
+        "thumbnail_image_original": {
+          "image_value": {
+            "height": 882,
+            "url": "https://pbs.twimg.com/card_img/2109933664515522560/JUkixJ-J?format=png&name=orig",
+            "width": 1686
+          },
+          "type": "IMAGE"
+        },
+        "photo_image_full_size_small": {
+          "image_value": {
+            "height": 202,
+            "url": "https://pbs.twimg.com/card_img/2109933664515522560/JUkixJ-J?format=png&name=386x202",
+            "width": 386
+          },
+          "type": "IMAGE"
+        },
+        "summary_photo_image_large": {
+          "image_value": {
+            "height": 419,
+            "url": "https://pbs.twimg.com/card_img/2109933664515522560/JUkixJ-J?format=png&name=800x419",
+            "width": 800
+          },
+          "type": "IMAGE"
+        },
+        "thumbnail_image_small": {
+          "image_value": {
+            "height": 75,
+            "url": "https://pbs.twimg.com/card_img/2109933664515522560/JUkixJ-J?format=png&name=144x144",
+            "width": 144
+          },
+          "type": "IMAGE"
+        },
+        "thumbnail_image_x_large": {
+          "image_value": {
+            "height": 882,
+            "url": "https://pbs.twimg.com/card_img/2109933664515522560/JUkixJ-J?format=png&name=2048x2048_2_exp",
+            "width": 1686
+          },
+          "type": "IMAGE"
+        },
+        "photo_image_full_size_original": {
+          "image_value": {
+            "height": 882,
+            "url": "https://pbs.twimg.com/card_img/2109933664515522560/JUkixJ-J?format=png&name=orig",
+            "width": 1686
+          },
+          "type": "IMAGE"
+        },
+        "vanity_url": {
+          "scribe_key": "vanity_url",
+          "string_value": "vercel.com",
+          "type": "STRING"
+        },
+        "photo_image_full_size": {
+          "image_value": {
+            "height": 314,
+            "url": "https://pbs.twimg.com/card_img/2109933664515522560/JUkixJ-J?format=png&name=600x314",
+            "width": 600
+          },
+          "type": "IMAGE"
+        },
+        "thumbnail_image_color": {
+          "image_color_value": {
+            "palette": [
+              {
+                "percentage": 98.17,
+                "rgb": {
+                  "blue": 18,
+                  "green": 18,
+                  "red": 18
+                }
+              },
+              {
+                "percentage": 1.82,
+                "rgb": {
+                  "blue": 119,
+                  "green": 67,
+                  "red": 24
+                }
+              }
+            ]
+          },
+          "type": "IMAGE_COLOR"
+        },
+        "title": {
+          "string_value": "Introducing React Tweet",
+          "type": "STRING"
+        },
+        "summary_photo_image_color": {
+          "image_color_value": {
+            "palette": [
+              {
+                "percentage": 98.17,
+                "rgb": {
+                  "blue": 18,
+                  "green": 18,
+                  "red": 18
+                }
+              },
+              {
+                "percentage": 1.82,
+                "rgb": {
+                  "blue": 119,
+                  "green": 67,
+                  "red": 24
+                }
+              }
+            ]
+          },
+          "type": "IMAGE_COLOR"
+        },
+        "summary_photo_image_x_large": {
+          "image_value": {
+            "height": 882,
+            "url": "https://pbs.twimg.com/card_img/2109933664515522560/JUkixJ-J?format=png&name=2048x2048_2_exp",
+            "width": 1686
+          },
+          "type": "IMAGE"
+        },
+        "summary_photo_image": {
+          "image_value": {
+            "height": 314,
+            "url": "https://pbs.twimg.com/card_img/2109933664515522560/JUkixJ-J?format=png&name=600x314",
+            "width": 600
+          },
+          "type": "IMAGE"
+        },
+        "photo_image_full_size_color": {
+          "image_color_value": {
+            "palette": [
+              {
+                "percentage": 98.17,
+                "rgb": {
+                  "blue": 18,
+                  "green": 18,
+                  "red": 18
+                }
+              },
+              {
+                "percentage": 1.82,
+                "rgb": {
+                  "blue": 119,
+                  "green": 67,
+                  "red": 24
+                }
+              }
+            ]
+          },
+          "type": "IMAGE_COLOR"
+        },
+        "photo_image_full_size_x_large": {
+          "image_value": {
+            "height": 882,
+            "url": "https://pbs.twimg.com/card_img/2109933664515522560/JUkixJ-J?format=png&name=2048x2048_2_exp",
+            "width": 1686
+          },
+          "type": "IMAGE"
+        },
+        "card_url": {
+          "scribe_key": "card_url",
+          "string_value": "https://t.co/CMH9A1IGjV",
+          "type": "STRING"
+        },
+        "summary_photo_image_original": {
+          "image_value": {
+            "height": 882,
+            "url": "https://pbs.twimg.com/card_img/2109933664515522560/JUkixJ-J?format=png&name=orig",
+            "width": 1686
+          },
+          "type": "IMAGE"
+        }
+      }
+    },
+    "isEdited": false,
+    "isStaleEdit": false
+  }
+}

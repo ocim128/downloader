@@ -1,0 +1,164 @@
+{
+  "recorded_at": "2026-10-17T05:52:53+00:00",
+  "tweet_id": "2058755555980681488",
+  "source_url": "2058755555980681488",
+  "http_status": 200,
+  "request_token": "4znrrn6jzte",
+  "request_features": "tfw_timeline_list:;tfw_follower_count_sunset:true;tfw_tweet_edit_backend:on;tfw_refsrc_session:on;tfw_fosnr_soft_interventions_enabled:on;tfw_show_birdwatch_pivots_enabled:on;tfw_show_business_verified_badge:on;tfw_duplicate_scribes_to_settings:on;tfw_use_profile_image_shape_enabled:on;tfw_show_blue_verified_badge:on;tfw_legacy_timeline_sunset:true;tfw_show_gov_verified_badge:on;tfw_show_business_affiliate_badge:on;tfw_tweet_edit_frontend:on",
+  "response": {
+    "__typename": "Tweet",
+    "favorite_count": 9224,
+    "lang": "en",
+    "possibly_sensitive": false,
+    "created_at": "2026-05-25T03:42:29.000Z",
+    "display_text_range": [
+      0,
+      21
+    ],
+    "entities": {
+      "media": [
+        {
+          "display_url": "pic.x.com/1pcAKDpOvp",
+          "expanded_url": "https://x.com/NASCAR/status/2058755555980681488/video/1",
+          "indices": [
+            22,
+            45
+          ],
+          "url": "https://t.co/1pcAKDpOvp"
+        }
+      ]
+    },
+    "id_str": "2058755555980681488",
+    "text": "This win is for Kyle. https://t.co/1pcAKDpOvp",
+    "user": {
+      "id_str": "49153854",
+      "name": "NASCAR",
+      "screen_name": "NASCAR",
+      "is_blue_verified": true,
+      "profile_image_shape": "Square",
+      "verified": false,
+      "verified_type": "Business",
+      "profile_image_url_https": "https://pbs.twimg.com/profile_images/2109412248250642432/i-nqF6YX_normal.jpg"
+    },
+    "edit_control": {
+      "edit_tweet_ids": [
+        "2058755555980681488"
+      ],
+      "editable_until_msecs": "1779684149000",
+      "edits_remaining": "5",
+      "is_edit_eligible": true
+    },
+    "mediaDetails": [
+      {
+        "additional_media_info": {},
+        "display_url": "pic.x.com/1pcAKDpOvp",
+        "expanded_url": "https://x.com/NASCAR/status/2058755555980681488/video/1",
+        "ext_media_availability": {
+          "status": "Available"
+        },
+        "indices": [
+          22,
+          45
+        ],
+        "media_url_https": "https://pbs.twimg.com/media/HJIrPQZXYAAP5Zh.jpg",
+        "original_info": {
+          "focus_rects": [],
+          "height": 1080,
+          "width": 1080
+        },
+        "sizes": {
+          "large": {
+            "h": 1080,
+            "resize": "fit",
+            "w": 1080
+          },
+          "medium": {
+            "h": 1080,
+            "resize": "fit",
+            "w": 1080
+          },
+          "small": {
+            "h": 680,
+            "resize": "fit",
+            "w": 680
+          },
+          "thumb": {
+            "h": 150,
+            "resize": "crop",
+            "w": 150
+          }
+        },
+        "type": "video",
+        "url": "https://t.co/1pcAKDpOvp",
+        "video_info": {
+          "aspect_ratio": [
+            1,
+            1
+          ],
+          "duration_millis": 65224,
+          "variants": [
+            {
+              "content_type": "application/x-mpegURL",
+              "url": "https://video.twimg.com/amplify_video/2058755522988257280/pl/NYC8zznxhx4cTgUv.m3u8?tag=16&v=375"
+            },
+            {
+              "bitrate": 432000,
+              "content_type": "video/mp4",
+              "url": "https://video.twimg.com/amplify_video/2058755522988257280/vid/avc1/320x320/6fibaw3e0UhKH2QX.mp4?tag=16"
+            },
+            {
+              "bitrate": 832000,
+              "content_type": "video/mp4",
+              "url": "https://video.twimg.com/amplify_video/2058755522988257280/vid/avc1/540x540/NoGpDo4Mp2Sn8nON.mp4?tag=16"
+            },
+            {
+              "bitrate": 1280000,
+              "content_type": "video/mp4",
+              "url": "https://video.twimg.com/amplify_video/2058755522988257280/vid/avc1/720x720/3pFqZ4bCkWLb54vR.mp4?tag=16"
+            }
+          ]
+        }
+      }
+    ],
+    "photos": [],
+    "video": {
+      "aspectRatio": [
+        1,
+        1
+      ],
+      "contentType": "media_entity",
+      "durationMs": 65224,
+      "mediaAvailability": {
+        "status": "available"
+      },
+      "poster": "https://pbs.twimg.com/media/HJIrPQZXYAAP5Zh.jpg",
+      "variants": [
+        {
+          "type": "application/x-mpegURL",
+          "src": "https://video.twimg.com/amplify_video/2058755522988257280/pl/NYC8zznxhx4cTgUv.m3u8?tag=16&v=375"
+        },
+        {
+          "type": "video/mp4",
+          "src": "https://video.twimg.com/amplify_video/2058755522988257280/vid/avc1/320x320/6fibaw3e0UhKH2QX.mp4?tag=16"
+        },
+        {
+          "type": "video/mp4",
+          "src": "https://video.twimg.com/amplify_video/2058755522988257280/vid/avc1/540x540/NoGpDo4Mp2Sn8nON.mp4?tag=16"
+        },
+        {
+          "type": "video/mp4",
+          "src": "https://video.twimg.com/amplify_video/2058755522988257280/vid/avc1/720x720/3pFqZ4bCkWLb54vR.mp4?tag=16"
+        }
+      ],
+      "videoId": {
+        "type": "tweet",
+        "id": "2058755555980681488"
+      },
+      "viewCount": 0
+    },
+    "conversation_count": 82,
+    "news_action_type": "conversation",
+    "isEdited": false,
+    "isStaleEdit": false
+  }
+}

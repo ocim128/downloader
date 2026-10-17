@@ -1,0 +1,230 @@
+{
+  "recorded_at": "2026-10-17T05:53:34+00:00",
+  "tweet_id": "449198059382386688",
+  "source_url": "449198059382386688",
+  "http_status": 200,
+  "request_token": "13773qbh5yql",
+  "request_features": "tfw_timeline_list:;tfw_follower_count_sunset:true;tfw_tweet_edit_backend:on;tfw_refsrc_session:on;tfw_fosnr_soft_interventions_enabled:on;tfw_show_birdwatch_pivots_enabled:on;tfw_show_business_verified_badge:on;tfw_duplicate_scribes_to_settings:on;tfw_use_profile_image_shape_enabled:on;tfw_show_blue_verified_badge:on;tfw_legacy_timeline_sunset:true;tfw_show_gov_verified_badge:on;tfw_show_business_affiliate_badge:on;tfw_tweet_edit_frontend:on",
+  "response": {
+    "__typename": "Tweet",
+    "favorite_count": 109,
+    "lang": "en",
+    "possibly_sensitive": false,
+    "created_at": "2014-03-27T14:55:37.000Z",
+    "display_text_range": [
+      0,
+      89
+    ],
+    "entities": {
+      "media": [
+        {
+          "display_url": "pic.x.com/2maGcN6GMs",
+          "expanded_url": "https://x.com/MLB/status/449198059382386688/photo/1",
+          "indices": [
+            67,
+            89
+          ],
+          "url": "http://t.co/2maGcN6GMs"
+        }
+      ],
+      "user_mentions": [
+        {
+          "id_str": "1292585952",
+          "indices": [
+            25,
+            37
+          ],
+          "name": "Dillon Gee",
+          "screen_name": "DillonGee35"
+        }
+      ]
+    },
+    "id_str": "449198059382386688",
+    "text": "A few different looks at @DillonGee35's no-hit start on Wednesday. http://t.co/2maGcN6GMs",
+    "user": {
+      "id_str": "18479513",
+      "name": "MLB",
+      "screen_name": "MLB",
+      "is_blue_verified": true,
+      "profile_image_shape": "Square",
+      "verified": false,
+      "verified_type": "Business",
+      "profile_image_url_https": "https://pbs.twimg.com/profile_images/2110952075999813632/MknlV_L5_normal.jpg"
+    },
+    "edit_control": {
+      "edit_tweet_ids": [
+        "449198059382386688"
+      ],
+      "editable_until_msecs": "1395933937710",
+      "edits_remaining": "5",
+      "is_edit_eligible": true
+    },
+    "mediaDetails": [
+      {
+        "display_url": "pic.x.com/2maGcN6GMs",
+        "expanded_url": "https://x.com/MLB/status/449198059382386688/photo/1",
+        "ext_media_availability": {
+          "status": "Available"
+        },
+        "indices": [
+          67,
+          89
+        ],
+        "media_url_https": "https://pbs.twimg.com/media/BjvfQKYIMAE8wQW.jpg",
+        "original_info": {
+          "focus_rects": [],
+          "height": 751,
+          "width": 1024
+        },
+        "sizes": {
+          "large": {
+            "h": 751,
+            "resize": "fit",
+            "w": 1024
+          },
+          "medium": {
+            "h": 751,
+            "resize": "fit",
+            "w": 1024
+          },
+          "small": {
+            "h": 499,
+            "resize": "fit",
+            "w": 680
+          },
+          "thumb": {
+            "h": 150,
+            "resize": "crop",
+            "w": 150
+          }
+        },
+        "type": "photo",
+        "url": "http://t.co/2maGcN6GMs"
+      },
+      {
+        "display_url": "pic.x.com/2maGcN6GMs",
+        "expanded_url": "https://x.com/MLB/status/449198059382386688/photo/1",
+        "ext_media_availability": {
+          "status": "Available"
+        },
+        "indices": [
+          67,
+          89
+        ],
+        "media_url_https": "https://pbs.twimg.com/media/BjvfQLlIYAAvgUT.jpg",
+        "original_info": {
+          "focus_rects": [],
+          "height": 1024,
+          "width": 869
+        },
+        "sizes": {
+          "large": {
+            "h": 1024,
+            "resize": "fit",
+            "w": 869
+          },
+          "medium": {
+            "h": 1024,
+            "resize": "fit",
+            "w": 869
+          },
+          "small": {
+            "h": 680,
+            "resize": "fit",
+            "w": 577
+          },
+          "thumb": {
+            "h": 150,
+            "resize": "crop",
+            "w": 150
+          }
+        },
+        "type": "photo",
+        "url": "http://t.co/2maGcN6GMs"
+      },
+      {
+        "display_url": "pic.x.com/2maGcN6GMs",
+        "expanded_url": "https://x.com/MLB/status/449198059382386688/photo/1",
+        "ext_media_availability": {
+          "status": "Available"
+        },
+        "indices": [
+          67,
+          89
+        ],
+        "media_url_https": "https://pbs.twimg.com/media/BjvfQLJIgAAmllL.jpg",
+        "original_info": {
+          "focus_rects": [],
+          "height": 682,
+          "width": 1024
+        },
+        "sizes": {
+          "large": {
+            "h": 682,
+            "resize": "fit",
+            "w": 1024
+          },
+          "medium": {
+            "h": 682,
+            "resize": "fit",
+            "w": 1024
+          },
+          "small": {
+            "h": 453,
+            "resize": "fit",
+            "w": 680
+          },
+          "thumb": {
+            "h": 150,
+            "resize": "crop",
+            "w": 150
+          }
+        },
+        "type": "photo",
+        "url": "http://t.co/2maGcN6GMs"
+      }
+    ],
+    "photos": [
+      {
+        "backgroundColor": {
+          "red": 204,
+          "green": 214,
+          "blue": 221
+        },
+        "cropCandidates": [],
+        "expandedUrl": "https://x.com/MLB/status/449198059382386688/photo/1",
+        "url": "https://pbs.twimg.com/media/BjvfQKYIMAE8wQW.jpg",
+        "width": 1024,
+        "height": 751
+      },
+      {
+        "backgroundColor": {
+          "red": 204,
+          "green": 214,
+          "blue": 221
+        },
+        "cropCandidates": [],
+        "expandedUrl": "https://x.com/MLB/status/449198059382386688/photo/1",
+        "url": "https://pbs.twimg.com/media/BjvfQLlIYAAvgUT.jpg",
+        "width": 869,
+        "height": 1024
+      },
+      {
+        "backgroundColor": {
+          "red": 204,
+          "green": 214,
+          "blue": 221
+        },
+        "cropCandidates": [],
+        "expandedUrl": "https://x.com/MLB/status/449198059382386688/photo/1",
+        "url": "https://pbs.twimg.com/media/BjvfQLJIgAAmllL.jpg",
+        "width": 1024,
+        "height": 682
+      }
+    ],
+    "conversation_count": 5,
+    "news_action_type": "conversation",
+    "isEdited": false,
+    "isStaleEdit": false
+  }
+}

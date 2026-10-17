@@ -1,0 +1,163 @@
+{
+  "recorded_at": "2026-10-17T05:53:08+00:00",
+  "tweet_id": "2040511285998313827",
+  "source_url": "2040511285998313827",
+  "http_status": 200,
+  "request_token": "4y2gevhhhm",
+  "request_features": "tfw_timeline_list:;tfw_follower_count_sunset:true;tfw_tweet_edit_backend:on;tfw_refsrc_session:on;tfw_fosnr_soft_interventions_enabled:on;tfw_show_birdwatch_pivots_enabled:on;tfw_show_business_verified_badge:on;tfw_duplicate_scribes_to_settings:on;tfw_use_profile_image_shape_enabled:on;tfw_show_blue_verified_badge:on;tfw_legacy_timeline_sunset:true;tfw_show_gov_verified_badge:on;tfw_show_business_affiliate_badge:on;tfw_tweet_edit_frontend:on",
+  "response": {
+    "__typename": "Tweet",
+    "favorite_count": 16480,
+    "lang": "en",
+    "possibly_sensitive": false,
+    "created_at": "2026-04-04T19:26:16.000Z",
+    "display_text_range": [
+      0,
+      106
+    ],
+    "entities": {
+      "media": [
+        {
+          "display_url": "pic.x.com/vdZbCKTCgj",
+          "expanded_url": "https://x.com/reactiive_/status/2040511285998313827/video/1",
+          "indices": [
+            107,
+            130
+          ],
+          "url": "https://t.co/vdZbCKTCgj"
+        }
+      ]
+    },
+    "id_str": "2040511285998313827",
+    "text": "I've been playing with React Native WebGPU recently and it's really flipping my perspective on animations. https://t.co/vdZbCKTCgj",
+    "user": {
+      "id_str": "1234223143516082177",
+      "name": "Enzo Manuel Mangano",
+      "screen_name": "reactiive_",
+      "is_blue_verified": true,
+      "profile_image_shape": "Circle",
+      "verified": false,
+      "profile_image_url_https": "https://pbs.twimg.com/profile_images/1523365322945970177/osaQVUc3_normal.jpg"
+    },
+    "edit_control": {
+      "edit_tweet_ids": [
+        "2040511285998313827"
+      ],
+      "editable_until_msecs": "1775334376000",
+      "edits_remaining": "5",
+      "is_edit_eligible": false
+    },
+    "mediaDetails": [
+      {
+        "additional_media_info": {},
+        "display_url": "pic.x.com/vdZbCKTCgj",
+        "expanded_url": "https://x.com/reactiive_/status/2040511285998313827/video/1",
+        "ext_media_availability": {
+          "status": "Available"
+        },
+        "indices": [
+          107,
+          130
+        ],
+        "media_url_https": "https://pbs.twimg.com/amplify_video_thumb/2040511227403853824/img/vadlormtj_E4aY0Y.jpg",
+        "original_info": {
+          "focus_rects": [],
+          "height": 2160,
+          "width": 2160
+        },
+        "sizes": {
+          "large": {
+            "h": 2048,
+            "resize": "fit",
+            "w": 2048
+          },
+          "medium": {
+            "h": 1200,
+            "resize": "fit",
+            "w": 1200
+          },
+          "small": {
+            "h": 680,
+            "resize": "fit",
+            "w": 680
+          },
+          "thumb": {
+            "h": 150,
+            "resize": "crop",
+            "w": 150
+          }
+        },
+        "type": "video",
+        "url": "https://t.co/vdZbCKTCgj",
+        "video_info": {
+          "aspect_ratio": [
+            1,
+            1
+          ],
+          "duration_millis": 13216,
+          "variants": [
+            {
+              "content_type": "application/x-mpegURL",
+              "url": "https://video.twimg.com/amplify_video/2040511227403853824/pl/IT7Y1TcuUDt8i2Zj.m3u8?tag=14"
+            },
+            {
+              "bitrate": 432000,
+              "content_type": "video/mp4",
+              "url": "https://video.twimg.com/amplify_video/2040511227403853824/vid/avc1/320x320/eNzyT-nTzq41D80G.mp4?tag=14"
+            },
+            {
+              "bitrate": 832000,
+              "content_type": "video/mp4",
+              "url": "https://video.twimg.com/amplify_video/2040511227403853824/vid/avc1/540x540/JllGl26cEXJuGlr_.mp4?tag=14"
+            },
+            {
+              "bitrate": 1280000,
+              "content_type": "video/mp4",
+              "url": "https://video.twimg.com/amplify_video/2040511227403853824/vid/avc1/720x720/d27bfDp4VakF9mdr.mp4?tag=14"
+            }
+          ]
+        }
+      }
+    ],
+    "photos": [],
+    "video": {
+      "aspectRatio": [
+        1,
+        1
+      ],
+      "contentType": "media_entity",
+      "durationMs": 13216,
+      "mediaAvailability": {
+        "status": "available"
+      },
+      "poster": "https://pbs.twimg.com/amplify_video_thumb/2040511227403853824/img/vadlormtj_E4aY0Y.jpg",
+      "variants": [
+        {
+          "type": "application/x-mpegURL",
+          "src": "https://video.twimg.com/amplify_video/2040511227403853824/pl/IT7Y1TcuUDt8i2Zj.m3u8?tag=14"
+        },
+        {
+          "type": "video/mp4",
+          "src": "https://video.twimg.com/amplify_video/2040511227403853824/vid/avc1/320x320/eNzyT-nTzq41D80G.mp4?tag=14"
+        },
+        {
+          "type": "video/mp4",
+          "src": "https://video.twimg.com/amplify_video/2040511227403853824/vid/avc1/540x540/JllGl26cEXJuGlr_.mp4?tag=14"
+        },
+        {
+          "type": "video/mp4",
+          "src": "https://video.twimg.com/amplify_video/2040511227403853824/vid/avc1/720x720/d27bfDp4VakF9mdr.mp4?tag=14"
+        }
+      ],
+      "videoId": {
+        "type": "tweet",
+        "id": "2040511285998313827"
+      },
+      "viewCount": 0
+    },
+    "conversation_count": 178,
+    "news_action_type": "conversation",
+    "isEdited": false,
+    "isStaleEdit": false
+  }
+}

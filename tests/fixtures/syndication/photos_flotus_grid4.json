@@ -1,0 +1,272 @@
+{
+  "recorded_at": "2026-10-17T05:53:29+00:00",
+  "tweet_id": "449660889793581056",
+  "source_url": "449660889793581056",
+  "http_status": 200,
+  "request_token": "138ng5ahq5wc",
+  "request_features": "tfw_timeline_list:;tfw_follower_count_sunset:true;tfw_tweet_edit_backend:on;tfw_refsrc_session:on;tfw_fosnr_soft_interventions_enabled:on;tfw_show_birdwatch_pivots_enabled:on;tfw_show_business_verified_badge:on;tfw_duplicate_scribes_to_settings:on;tfw_use_profile_image_shape_enabled:on;tfw_show_blue_verified_badge:on;tfw_legacy_timeline_sunset:true;tfw_show_gov_verified_badge:on;tfw_show_business_affiliate_badge:on;tfw_tweet_edit_frontend:on",
+  "response": {
+    "__typename": "Tweet",
+    "favorite_count": 213,
+    "lang": "en",
+    "possibly_sensitive": false,
+    "created_at": "2014-03-28T21:34:45.000Z",
+    "display_text_range": [
+      0,
+      143
+    ],
+    "entities": {
+      "media": [
+        {
+          "display_url": "pic.x.com/fxmuQN9JL9",
+          "expanded_url": "https://x.com/FLOTUS/status/449660889793581056/photo/1",
+          "indices": [
+            121,
+            143
+          ],
+          "url": "http://t.co/fxmuQN9JL9"
+        }
+      ]
+    },
+    "id_str": "449660889793581056",
+    "text": "\"I hope you'll keep...building bonds of friendship that will enrich your lives &amp; enrich our world\" —FLOTUS in China, http://t.co/fxmuQN9JL9",
+    "user": {
+      "id_str": "1093090866",
+      "name": "First Lady- Archived",
+      "screen_name": "FLOTUS44",
+      "is_blue_verified": true,
+      "profile_image_shape": "Circle",
+      "verified": false,
+      "verified_type": "Government",
+      "profile_image_url_https": "https://pbs.twimg.com/profile_images/819629543027834886/ax_Bugws_normal.jpg"
+    },
+    "edit_control": {
+      "edit_tweet_ids": [
+        "449660889793581056"
+      ],
+      "editable_until_msecs": "1396044285079",
+      "edits_remaining": "5",
+      "is_edit_eligible": true
+    },
+    "mediaDetails": [
+      {
+        "display_url": "pic.x.com/fxmuQN9JL9",
+        "expanded_url": "https://x.com/FLOTUS/status/449660889793581056/photo/1",
+        "ext_media_availability": {
+          "status": "Available"
+        },
+        "indices": [
+          121,
+          143
+        ],
+        "media_url_https": "https://pbs.twimg.com/media/Bj2EH6yIQAEYvxu.jpg",
+        "original_info": {
+          "focus_rects": [],
+          "height": 426,
+          "width": 640
+        },
+        "sizes": {
+          "large": {
+            "h": 426,
+            "resize": "fit",
+            "w": 640
+          },
+          "medium": {
+            "h": 426,
+            "resize": "fit",
+            "w": 640
+          },
+          "small": {
+            "h": 426,
+            "resize": "fit",
+            "w": 640
+          },
+          "thumb": {
+            "h": 150,
+            "resize": "crop",
+            "w": 150
+          }
+        },
+        "type": "photo",
+        "url": "http://t.co/fxmuQN9JL9"
+      },
+      {
+        "display_url": "pic.x.com/fxmuQN9JL9",
+        "expanded_url": "https://x.com/FLOTUS/status/449660889793581056/photo/1",
+        "ext_media_availability": {
+          "status": "Available"
+        },
+        "indices": [
+          121,
+          143
+        ],
+        "media_url_https": "https://pbs.twimg.com/media/Bj2EHxAIIAE8dtg.jpg",
+        "original_info": {
+          "focus_rects": [],
+          "height": 426,
+          "width": 640
+        },
+        "sizes": {
+          "large": {
+            "h": 426,
+            "resize": "fit",
+            "w": 640
+          },
+          "medium": {
+            "h": 426,
+            "resize": "fit",
+            "w": 640
+          },
+          "small": {
+            "h": 426,
+            "resize": "fit",
+            "w": 640
+          },
+          "thumb": {
+            "h": 150,
+            "resize": "crop",
+            "w": 150
+          }
+        },
+        "type": "photo",
+        "url": "http://t.co/fxmuQN9JL9"
+      },
+      {
+        "display_url": "pic.x.com/fxmuQN9JL9",
+        "expanded_url": "https://x.com/FLOTUS/status/449660889793581056/photo/1",
+        "ext_media_availability": {
+          "status": "Available"
+        },
+        "indices": [
+          121,
+          143
+        ],
+        "media_url_https": "https://pbs.twimg.com/media/Bj2EH3pIYAE4LQn.jpg",
+        "original_info": {
+          "focus_rects": [],
+          "height": 427,
+          "width": 640
+        },
+        "sizes": {
+          "large": {
+            "h": 427,
+            "resize": "fit",
+            "w": 640
+          },
+          "medium": {
+            "h": 427,
+            "resize": "fit",
+            "w": 640
+          },
+          "small": {
+            "h": 427,
+            "resize": "fit",
+            "w": 640
+          },
+          "thumb": {
+            "h": 150,
+            "resize": "crop",
+            "w": 150
+          }
+        },
+        "type": "photo",
+        "url": "http://t.co/fxmuQN9JL9"
+      },
+      {
+        "display_url": "pic.x.com/fxmuQN9JL9",
+        "expanded_url": "https://x.com/FLOTUS/status/449660889793581056/photo/1",
+        "ext_media_availability": {
+          "status": "Available"
+        },
+        "indices": [
+          121,
+          143
+        ],
+        "media_url_https": "https://pbs.twimg.com/media/Bj2EL3DIEAAzGAX.jpg",
+        "original_info": {
+          "focus_rects": [],
+          "height": 426,
+          "width": 640
+        },
+        "sizes": {
+          "large": {
+            "h": 426,
+            "resize": "fit",
+            "w": 640
+          },
+          "medium": {
+            "h": 426,
+            "resize": "fit",
+            "w": 640
+          },
+          "small": {
+            "h": 426,
+            "resize": "fit",
+            "w": 640
+          },
+          "thumb": {
+            "h": 150,
+            "resize": "crop",
+            "w": 150
+          }
+        },
+        "type": "photo",
+        "url": "http://t.co/fxmuQN9JL9"
+      }
+    ],
+    "photos": [
+      {
+        "backgroundColor": {
+          "red": 204,
+          "green": 214,
+          "blue": 221
+        },
+        "cropCandidates": [],
+        "expandedUrl": "https://x.com/FLOTUS/status/449660889793581056/photo/1",
+        "url": "https://pbs.twimg.com/media/Bj2EH6yIQAEYvxu.jpg",
+        "width": 640,
+        "height": 426
+      },
+      {
+        "backgroundColor": {
+          "red": 204,
+          "green": 214,
+          "blue": 221
+        },
+        "cropCandidates": [],
+        "expandedUrl": "https://x.com/FLOTUS/status/449660889793581056/photo/1",
+        "url": "https://pbs.twimg.com/media/Bj2EHxAIIAE8dtg.jpg",
+        "width": 640,
+        "height": 426
+      },
+      {
+        "backgroundColor": {
+          "red": 204,
+          "green": 214,
+          "blue": 221
+        },
+        "cropCandidates": [],
+        "expandedUrl": "https://x.com/FLOTUS/status/449660889793581056/photo/1",
+        "url": "https://pbs.twimg.com/media/Bj2EH3pIYAE4LQn.jpg",
+        "width": 640,
+        "height": 427
+      },
+      {
+        "backgroundColor": {
+          "red": 204,
+          "green": 214,
+          "blue": 221
+        },
+        "cropCandidates": [],
+        "expandedUrl": "https://x.com/FLOTUS/status/449660889793581056/photo/1",
+        "url": "https://pbs.twimg.com/media/Bj2EL3DIEAAzGAX.jpg",
+        "width": 640,
+        "height": 426
+      }
+    ],
+    "conversation_count": 34,
+    "news_action_type": "conversation",
+    "isEdited": false,
+    "isStaleEdit": false
+  }
+}

@@ -1,0 +1,189 @@
+{
+  "recorded_at": "2026-10-17T05:52:58+00:00",
+  "tweet_id": "2110047410852680127",
+  "source_url": "2110047410852680127",
+  "http_status": 200,
+  "request_token": "544wqn1sxie",
+  "request_features": "tfw_timeline_list:;tfw_follower_count_sunset:true;tfw_tweet_edit_backend:on;tfw_refsrc_session:on;tfw_fosnr_soft_interventions_enabled:on;tfw_show_birdwatch_pivots_enabled:on;tfw_show_business_verified_badge:on;tfw_duplicate_scribes_to_settings:on;tfw_use_profile_image_shape_enabled:on;tfw_show_blue_verified_badge:on;tfw_legacy_timeline_sunset:true;tfw_show_gov_verified_badge:on;tfw_show_business_affiliate_badge:on;tfw_tweet_edit_frontend:on",
+  "response": {
+    "__typename": "Tweet",
+    "favorite_count": 5437,
+    "lang": "en",
+    "possibly_sensitive": false,
+    "created_at": "2026-10-13T16:38:00.000Z",
+    "display_text_range": [
+      0,
+      53
+    ],
+    "entities": {
+      "hashtags": [
+        {
+          "indices": [
+            36,
+            39
+          ],
+          "text": "F1"
+        },
+        {
+          "indices": [
+            40,
+            52
+          ],
+          "text": "SingaporeGP"
+        }
+      ],
+      "media": [
+        {
+          "display_url": "pic.x.com/WFC1lcYnLd",
+          "expanded_url": "https://x.com/F1/status/2110047410852680127/video/1",
+          "indices": [
+            53,
+            76
+          ],
+          "url": "https://t.co/WFC1lcYnLd"
+        }
+      ]
+    },
+    "id_str": "2110047410852680127",
+    "text": "Did you win the staring contest? 👀\n\n#F1 #SingaporeGP https://t.co/WFC1lcYnLd",
+    "user": {
+      "id_str": "69008563",
+      "name": "Formula 1",
+      "screen_name": "F1",
+      "is_blue_verified": true,
+      "profile_image_shape": "Square",
+      "verified": false,
+      "verified_type": "Business",
+      "profile_image_url_https": "https://pbs.twimg.com/profile_images/2088954775534514177/8jPk8bwL_normal.jpg"
+    },
+    "edit_control": {
+      "edit_tweet_ids": [
+        "2110047410852680127"
+      ],
+      "editable_until_msecs": "1791913080000",
+      "edits_remaining": "5",
+      "is_edit_eligible": true
+    },
+    "mediaDetails": [
+      {
+        "additional_media_info": {},
+        "display_url": "pic.x.com/WFC1lcYnLd",
+        "expanded_url": "https://x.com/F1/status/2110047410852680127/video/1",
+        "ext_media_availability": {
+          "status": "Available"
+        },
+        "indices": [
+          53,
+          76
+        ],
+        "media_url_https": "https://pbs.twimg.com/amplify_video_thumb/2109975374427807744/img/NHZyx0hP_ytPkCIR.jpg",
+        "original_info": {
+          "focus_rects": [],
+          "height": 1920,
+          "width": 1080
+        },
+        "sizes": {
+          "large": {
+            "h": 1920,
+            "resize": "fit",
+            "w": 1080
+          },
+          "medium": {
+            "h": 1200,
+            "resize": "fit",
+            "w": 675
+          },
+          "small": {
+            "h": 680,
+            "resize": "fit",
+            "w": 383
+          },
+          "thumb": {
+            "h": 150,
+            "resize": "crop",
+            "w": 150
+          }
+        },
+        "type": "video",
+        "url": "https://t.co/WFC1lcYnLd",
+        "video_info": {
+          "aspect_ratio": [
+            9,
+            16
+          ],
+          "duration_millis": 8021,
+          "variants": [
+            {
+              "content_type": "application/x-mpegURL",
+              "url": "https://video.twimg.com/amplify_video/2109975374427807744/pl/qLUa6mNnDNPElIRh.m3u8"
+            },
+            {
+              "bitrate": 632000,
+              "content_type": "video/mp4",
+              "url": "https://video.twimg.com/amplify_video/2109975374427807744/vid/avc1/320x568/_NDKtXhnZLdawVXF.mp4"
+            },
+            {
+              "bitrate": 950000,
+              "content_type": "video/mp4",
+              "url": "https://video.twimg.com/amplify_video/2109975374427807744/vid/avc1/480x852/9cGv-6LQAJVCOD0z.mp4"
+            },
+            {
+              "bitrate": 2176000,
+              "content_type": "video/mp4",
+              "url": "https://video.twimg.com/amplify_video/2109975374427807744/vid/avc1/720x1280/txIrANm5qdvSS1O5.mp4"
+            },
+            {
+              "bitrate": 10368000,
+              "content_type": "video/mp4",
+              "url": "https://video.twimg.com/amplify_video/2109975374427807744/vid/avc1/1080x1920/VS55MqNV6QCsjG17.mp4"
+            }
+          ]
+        }
+      }
+    ],
+    "photos": [],
+    "video": {
+      "aspectRatio": [
+        9,
+        16
+      ],
+      "contentType": "media_entity",
+      "durationMs": 8021,
+      "mediaAvailability": {
+        "status": "available"
+      },
+      "poster": "https://pbs.twimg.com/amplify_video_thumb/2109975374427807744/img/NHZyx0hP_ytPkCIR.jpg",
+      "variants": [
+        {
+          "type": "application/x-mpegURL",
+          "src": "https://video.twimg.com/amplify_video/2109975374427807744/pl/qLUa6mNnDNPElIRh.m3u8"
+        },
+        {
+          "type": "video/mp4",
+          "src": "https://video.twimg.com/amplify_video/2109975374427807744/vid/avc1/320x568/_NDKtXhnZLdawVXF.mp4"
+        },
+        {
+          "type": "video/mp4",
+          "src": "https://video.twimg.com/amplify_video/2109975374427807744/vid/avc1/480x852/9cGv-6LQAJVCOD0z.mp4"
+        },
+        {
+          "type": "video/mp4",
+          "src": "https://video.twimg.com/amplify_video/2109975374427807744/vid/avc1/720x1280/txIrANm5qdvSS1O5.mp4"
+        },
+        {
+          "type": "video/mp4",
+          "src": "https://video.twimg.com/amplify_video/2109975374427807744/vid/avc1/1080x1920/VS55MqNV6QCsjG17.mp4"
+        }
+      ],
+      "videoId": {
+        "type": "tweet",
+        "id": "2110047410852680127"
+      },
+      "viewCount": 0
+    },
+    "conversation_count": 54,
+    "news_action_type": "conversation",
+    "isEdited": false,
+    "isStaleEdit": false
+  }
+}

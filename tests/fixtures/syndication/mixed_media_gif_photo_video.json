@@ -1,0 +1,345 @@
+{
+  "recorded_at": "2026-10-17T05:53:19+00:00",
+  "tweet_id": "1553065817788407808",
+  "source_url": "1553065817788407808",
+  "http_status": 200,
+  "request_token": "3rj3lt8k8t9",
+  "request_features": "tfw_timeline_list:;tfw_follower_count_sunset:true;tfw_tweet_edit_backend:on;tfw_refsrc_session:on;tfw_fosnr_soft_interventions_enabled:on;tfw_show_birdwatch_pivots_enabled:on;tfw_show_business_verified_badge:on;tfw_duplicate_scribes_to_settings:on;tfw_use_profile_image_shape_enabled:on;tfw_show_blue_verified_badge:on;tfw_legacy_timeline_sunset:true;tfw_show_gov_verified_badge:on;tfw_show_business_affiliate_badge:on;tfw_tweet_edit_frontend:on",
+  "response": {
+    "__typename": "Tweet",
+    "favorite_count": 182,
+    "lang": "en",
+    "possibly_sensitive": false,
+    "created_at": "2022-07-29T17:12:00.000Z",
+    "display_text_range": [
+      0,
+      138
+    ],
+    "entities": {
+      "hashtags": [
+        {
+          "indices": [
+            130,
+            138
+          ],
+          "text": "GoCards"
+        }
+      ],
+      "media": [
+        {
+          "display_url": "pic.x.com/Ffh2DXImfK",
+          "expanded_url": "https://x.com/GoCards/status/1553065817788407808/video/1",
+          "indices": [
+            139,
+            162
+          ],
+          "url": "https://t.co/Ffh2DXImfK"
+        }
+      ],
+      "user_mentions": [
+        {
+          "id_str": "249679275",
+          "indices": [
+            100,
+            110
+          ],
+          "name": "NACMA News",
+          "screen_name": "NACMANews"
+        }
+      ]
+    },
+    "id_str": "1553065817788407808",
+    "text": "An event as unique as our city!\n\nLouisville Live: Horses &amp; Hoops took home gold in the 2021-222 @NACMANews “Best Of” Awards.\n\n#GoCards https://t.co/Ffh2DXImfK",
+    "user": {
+      "id_str": "52078622",
+      "name": "Louisville Athletics",
+      "screen_name": "GoCards",
+      "is_blue_verified": false,
+      "profile_image_shape": "Square",
+      "verified": false,
+      "verified_type": "Business",
+      "profile_image_url_https": "https://pbs.twimg.com/profile_images/1810304189870047232/ophY-WKc_normal.jpg"
+    },
+    "edit_control": {
+      "edit_tweet_ids": [
+        "1553065817788407808"
+      ],
+      "editable_until_msecs": "1659116520000",
+      "edits_remaining": "5",
+      "is_edit_eligible": true
+    },
+    "mediaDetails": [
+      {
+        "display_url": "pic.x.com/Ffh2DXImfK",
+        "expanded_url": "https://x.com/GoCards/status/1553065817788407808/video/1",
+        "ext_alt_text": "A GIF of photos from Louisville Live: Horses & Hoops",
+        "ext_media_availability": {
+          "status": "Available"
+        },
+        "indices": [
+          139,
+          162
+        ],
+        "media_url_https": "https://pbs.twimg.com/tweet_video_thumb/FY2ZD9AVsAAh4kM.jpg",
+        "original_info": {
+          "focus_rects": [],
+          "height": 1918,
+          "width": 1920
+        },
+        "sizes": {
+          "large": {
+            "h": 1918,
+            "resize": "fit",
+            "w": 1920
+          },
+          "medium": {
+            "h": 1199,
+            "resize": "fit",
+            "w": 1200
+          },
+          "small": {
+            "h": 679,
+            "resize": "fit",
+            "w": 680
+          },
+          "thumb": {
+            "h": 150,
+            "resize": "crop",
+            "w": 150
+          }
+        },
+        "type": "animated_gif",
+        "url": "https://t.co/Ffh2DXImfK",
+        "video_info": {
+          "aspect_ratio": [
+            960,
+            959
+          ],
+          "variants": [
+            {
+              "bitrate": 0,
+              "content_type": "video/mp4",
+              "url": "https://video.twimg.com/tweet_video/FY2ZD9AVsAAh4kM.mp4"
+            }
+          ]
+        }
+      },
+      {
+        "display_url": "pic.x.com/Ffh2DXImfK",
+        "expanded_url": "https://x.com/GoCards/status/1553065817788407808/video/1",
+        "ext_alt_text": "Sunset over Louisville Live: Horses & Hoops as the Louisville Cardinals Women’s Basketball team is on the court",
+        "ext_media_availability": {
+          "status": "Available"
+        },
+        "indices": [
+          139,
+          162
+        ],
+        "media_url_https": "https://pbs.twimg.com/media/FY2ZD8-VQAEBsLo.jpg",
+        "original_info": {
+          "focus_rects": [
+            {
+              "h": 1147,
+              "w": 2048,
+              "x": 0,
+              "y": 195
+            },
+            {
+              "h": 1364,
+              "w": 1364,
+              "x": 684,
+              "y": 0
+            },
+            {
+              "h": 1364,
+              "w": 1196,
+              "x": 852,
+              "y": 0
+            },
+            {
+              "h": 1364,
+              "w": 682,
+              "x": 1143,
+              "y": 0
+            },
+            {
+              "h": 1364,
+              "w": 2048,
+              "x": 0,
+              "y": 0
+            }
+          ],
+          "height": 1364,
+          "width": 2048
+        },
+        "sizes": {
+          "large": {
+            "h": 1364,
+            "resize": "fit",
+            "w": 2048
+          },
+          "medium": {
+            "h": 799,
+            "resize": "fit",
+            "w": 1200
+          },
+          "small": {
+            "h": 453,
+            "resize": "fit",
+            "w": 680
+          },
+          "thumb": {
+            "h": 150,
+            "resize": "crop",
+            "w": 150
+          }
+        },
+        "type": "photo",
+        "url": "https://t.co/Ffh2DXImfK"
+      },
+      {
+        "additional_media_info": {},
+        "display_url": "pic.x.com/Ffh2DXImfK",
+        "expanded_url": "https://x.com/GoCards/status/1553065817788407808/video/1",
+        "ext_media_availability": {
+          "status": "Available"
+        },
+        "indices": [
+          139,
+          162
+        ],
+        "media_url_https": "https://pbs.twimg.com/ext_tw_video_thumb/1553065739703050241/pu/img/tyw5qeDWgqGkz0Io.jpg",
+        "original_info": {
+          "focus_rects": [],
+          "height": 720,
+          "width": 1280
+        },
+        "sizes": {
+          "large": {
+            "h": 720,
+            "resize": "fit",
+            "w": 1280
+          },
+          "medium": {
+            "h": 675,
+            "resize": "fit",
+            "w": 1200
+          },
+          "small": {
+            "h": 383,
+            "resize": "fit",
+            "w": 680
+          },
+          "thumb": {
+            "h": 150,
+            "resize": "crop",
+            "w": 150
+          }
+        },
+        "type": "video",
+        "url": "https://t.co/Ffh2DXImfK",
+        "video_info": {
+          "aspect_ratio": [
+            16,
+            9
+          ],
+          "duration_millis": 18516,
+          "variants": [
+            {
+              "content_type": "application/x-mpegURL",
+              "url": "https://video.twimg.com/ext_tw_video/1553065739703050241/pu/pl/5dyS3UNgMXJBlVa6.m3u8?tag=12"
+            },
+            {
+              "bitrate": 256000,
+              "content_type": "video/mp4",
+              "url": "https://video.twimg.com/ext_tw_video/1553065739703050241/pu/vid/480x270/H1UmAtaU9rFGUQsM.mp4?tag=12"
+            },
+            {
+              "bitrate": 832000,
+              "content_type": "video/mp4",
+              "url": "https://video.twimg.com/ext_tw_video/1553065739703050241/pu/vid/640x360/Jsy21cUwfGN3RVeM.mp4?tag=12"
+            },
+            {
+              "bitrate": 2176000,
+              "content_type": "video/mp4",
+              "url": "https://video.twimg.com/ext_tw_video/1553065739703050241/pu/vid/1280x720/LzCJhy7R27zjLfxD.mp4?tag=12"
+            }
+          ]
+        }
+      }
+    ],
+    "photos": [
+      {
+        "accessibilityLabel": "Sunset over Louisville Live: Horses & Hoops as the Louisville Cardinals Women’s Basketball team is on the court",
+        "backgroundColor": {
+          "red": 204,
+          "green": 214,
+          "blue": 221
+        },
+        "cropCandidates": [
+          {
+            "h": 1147,
+            "w": 2048,
+            "x": 0,
+            "y": 195
+          },
+          {
+            "h": 1364,
+            "w": 1364,
+            "x": 684,
+            "y": 0
+          },
+          {
+            "h": 1364,
+            "w": 1196,
+            "x": 852,
+            "y": 0
+          },
+          {
+            "h": 1364,
+            "w": 682,
+            "x": 1143,
+            "y": 0
+          },
+          {
+            "h": 1364,
+            "w": 2048,
+            "x": 0,
+            "y": 0
+          }
+        ],
+        "expandedUrl": "https://x.com/GoCards/status/1553065817788407808/video/1",
+        "url": "https://pbs.twimg.com/media/FY2ZD8-VQAEBsLo.jpg",
+        "width": 2048,
+        "height": 1364
+      }
+    ],
+    "video": {
+      "aspectRatio": [
+        960,
+        959
+      ],
+      "contentType": "gif",
+      "durationMs": 0,
+      "mediaAvailability": {
+        "status": "available"
+      },
+      "poster": "https://pbs.twimg.com/tweet_video_thumb/FY2ZD9AVsAAh4kM.jpg",
+      "variants": [
+        {
+          "type": "video/mp4",
+          "src": "https://video.twimg.com/tweet_video/FY2ZD9AVsAAh4kM.mp4"
+        }
+      ],
+      "videoId": {
+        "type": "tweet",
+        "id": "1553065817788407808"
+      },
+      "viewCount": 0
+    },
+    "conversation_count": 3,
+    "news_action_type": "conversation",
+    "isEdited": false,
+    "isStaleEdit": false
+  }
+}
