@@ -3,6 +3,21 @@
 Private, local batch downloader for X (Twitter) video posts. Dates are
 2026-10-17 (two parallel implementation rounds merged into `main`).
 
+## [Unreleased] — 2026-10-17
+
+### Changed
+
+- **Default output filename is now the bare tweet id** (`feat/naming-by-id`):
+  `filename_template` default `{date}_{id}` → `{id}` in both `StorageCfg` and
+  `render_path`. `xdl <url>` now writes `downloads/x/<author>/<id>.mp4`
+  (e.g. `.../Rainmaker1973/2111083867478368447.mp4`) — an id-named file maps
+  1:1 to its source URL. Multi-video `_v{index}` suffix unchanged, now on the
+  bare id; sidecar follows the media name automatically. `{date}_{id}` and
+  the other template variables remain available via `config.toml`. **No
+  migration**: skip logic reuses the `file_path` stored in `state.db`, so
+  posts downloaded under the old names keep skipping; old- and new-named
+  files coexist by design.
+
 ## [0.1.0] — round 2, 2026-10-17
 
 ### Core (rounds 1-2, `feat/core` → main)

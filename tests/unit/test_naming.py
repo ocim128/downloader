@@ -74,7 +74,7 @@ def _tweet(
 
 def test_render_path_by_author_default(tmp_path: Path) -> None:
     p = render_path(tmp_path, _tweet(), 1)
-    assert p == tmp_path / "x" / "someuser" / f"{_local_date(_tweet())}_1750123456789012352.mp4"
+    assert p == tmp_path / "x" / "someuser" / "1750123456789012352.mp4"
 
 
 def _local_date(tweet: ResolvedTweet) -> str:
@@ -84,22 +84,26 @@ def _local_date(tweet: ResolvedTweet) -> str:
 
 
 def test_render_path_flat_and_by_date(tmp_path: Path) -> None:
-    d = _local_date(_tweet())
     assert render_path(tmp_path, _tweet(), 1, layout="flat") == (
-        tmp_path / "x" / f"{d}_1750123456789012352.mp4"
+        tmp_path / "x" / "1750123456789012352.mp4"
     )
     assert render_path(tmp_path, _tweet(), 1, layout="by-date") == (
         tmp_path / "x" / f"{_tweet().created_at.astimezone().year}"
-        / f"{_tweet().created_at.astimezone().month:02d}" / f"{d}_1750123456789012352.mp4"
+        / f"{_tweet().created_at.astimezone().month:02d}" / "1750123456789012352.mp4"
     )
 
 
 def test_render_path_multi_video_suffix(tmp_path: Path) -> None:
     # index 1 omits the suffix; >=2 appends _v{index} (stable single-video names)
-    d = _local_date(_tweet())
-    assert render_path(tmp_path, _tweet(), 1).name == f"{d}_1750123456789012352.mp4"
-    assert render_path(tmp_path, _tweet(), 2).name == f"{d}_1750123456789012352_v2.mp4"
-    assert render_path(tmp_path, _tweet(), 3).name == f"{d}_1750123456789012352_v3.mp4"
+    assert render_path(tmp_path, _tweet(), 1).name == "1750123456789012352.mp4"
+    assert render_path(tmp_path, _tweet(), 2).name == "1750123456789012352_v2.mp4"
+    assert render_path(tmp_path, _tweet(), 3).name == "1750123456789012352_v3.mp4"
+
+
+def test_render_path_date_id_template_still_supported(tmp_path: Path) -> None:
+    # the previous default remains available when configured
+    p = render_path(tmp_path, _tweet(), 1, template="{date}_{id}")
+    assert p.name == f"{_local_date(_tweet())}_1750123456789012352.mp4"
 
 
 def test_render_path_deterministic(tmp_path: Path) -> None:
@@ -113,7 +117,7 @@ def test_render_path_author_sanitized(tmp_path: Path) -> None:
     # trailing dot is stripped by rule 2, not replaced
     p = render_path(tmp_path, _tweet(author="bad<>name."), 1)
     assert p.parent == tmp_path / "x" / "bad__name"
-    assert p.name == f"{_local_date(_tweet())}_1750123456789012352.mp4"
+    assert p.name == "1750123456789012352.mp4"
 
 
 def test_render_path_template_vars(tmp_path: Path) -> None:

@@ -26,7 +26,7 @@ CONFIG_FILE_NAME = "config.toml"
 class StorageCfg(BaseModel):
     root: Path = Path("downloads")  # cwd-relative default (spec'd)
     layout: str = DEFAULT_LAYOUT
-    filename_template: str = "{date}_{id}"
+    filename_template: str = "{id}"
     db_path: Path | None = None  # None -> <app_dir>/state.db (platformdirs)
 
 

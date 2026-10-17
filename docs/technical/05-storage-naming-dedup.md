@@ -12,9 +12,9 @@ Layouts (config `layout`):
 
 | Layout | Path template | Default |
 |---|---|---|
-| `by-author` | `{root}/x/{author}/{date}_{id}.mp4` | ✅ |
-| `flat` | `{root}/x/{date}_{id}.mp4` | |
-| `by-date` | `{root}/x/{yyyy}/{mm}/{date}_{id}.mp4` | |
+| `by-author` | `{root}/x/{author}/{id}.mp4` | ✅ |
+| `flat` | `{root}/x/{id}.mp4` | |
+| `by-date` | `{root}/x/{yyyy}/{mm}/{id}.mp4` | |
 
 Template variables available (config `filename_template`):
 
@@ -26,9 +26,12 @@ Template variables available (config `filename_template`):
 | `{index}` | media position in multi-video post | `2` |
 | `{slug}` | first 30 chars of text, slugified | `check-out-this-thing` |
 
-Default template: `{date}_{id}` (author comes from the directory in `by-author` layout).
-Multi-video posts always append `_v{index}` for index ≥ 2 (`2026-10-01_1750..._v2.mp4`);
-index 1 omits the suffix (stable names for the 95% single-video case).
+Default template: `{id}` — the filename is exactly the status id from the source
+URL, mapping 1:1 to it (author/date come from the directory in `by-author` /
+`by-date` layouts). `{date}_{id}` and every other variable combination remain
+available via config. Multi-video posts always append `_v{index}` for index ≥ 2
+(`1750..._v2.mp4`); index 1 omits the suffix (stable names for the 95%
+single-video case).
 
 ## Determinism contract
 

@@ -85,7 +85,7 @@ keys warn instead of failing. A commented template lives at
 [storage]
 root = "D:/Media/x"          # default: ./downloads
 layout = "by-author"         # by-author | flat | by-date
-filename_template = "{date}_{id}"
+filename_template = "{id}"    # vars: {id} {date} {author} {index} {slug}
 
 [resolver]
 primary = "syndication"

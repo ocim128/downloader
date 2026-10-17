@@ -19,7 +19,7 @@
 [storage]
 root = "./downloads"            # downloads root (cwd-relative when relative)
 layout = "by-author"            # by-author | flat | by-date
-filename_template = "{date}_{id}"
+filename_template = "{id}"       # vars: {id} {date} {author} {index} {slug}
 # db_path = ""                  # absolute state.db path [default: app_dir/state.db]
 
 [resolver]

@@ -18,19 +18,21 @@ def test_absent_file_and_env_gives_defaults() -> None:
     s = Settings.load(read_env=False)
     assert s.engine.concurrency == 3
     assert s.resolver.fallback == "auto"
-    assert s.storage.filename_template == "{date}_{id}"
+    assert s.storage.filename_template == "{id}"
     assert s.storage.layout in VALID_LAYOUTS
 
 
 def test_toml_only(tmp_path: Path) -> None:
     cfg = tmp_path / "config.toml"
     cfg.write_text(
-        '[engine]\nretries = 7\n\n[storage]\nroot = "D:/dl"\nlayout = "flat"\n',
+        '[engine]\nretries = 7\n\n[storage]\nroot = "D:/dl"\nlayout = "flat"\n'
+        'filename_template = "{date}_{id}"\n',
         encoding="utf-8",
     )
     s = Settings.load(read_env=False, config_path=cfg)
     assert s.engine.retries == 7
     assert s.storage.layout == "flat"
+    assert s.storage.filename_template == "{date}_{id}"  # old default still settable
 
 
 def test_env_beats_toml(

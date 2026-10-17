@@ -63,7 +63,7 @@ def render_path(
     index: int,
     *,
     layout: str = "by-author",
-    template: str = "{date}_{id}",
+    template: str = "{id}",
     ext: str = ".mp4",
 ) -> Path:
     """Deterministic destination for one media file of a post."""

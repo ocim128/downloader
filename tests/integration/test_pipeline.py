@@ -7,7 +7,6 @@ dirs.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -25,9 +24,6 @@ GONE_ID = "1750444444444444444"
 MP4_A = b"\x00\x01\x02VIDEO-A" * 50
 MP4_B = b"\x03\x04VIDEO-B" * 40
 MP4_C = b"\x05VIDEO-C" * 30
-
-# {date} is local-tz by spec — compute expectations with the same conversion.
-DATE = datetime(2026, 9, 30, 21, 14, 3, tzinfo=UTC).astimezone().strftime("%Y-%m-%d")
 
 
 def _video_tweet(tweet_id: str, user: str = "someuser") -> dict[str, Any]:
@@ -144,7 +140,7 @@ def request_for(urls: list[str], settings: Settings, **kw: Any) -> BatchRequest:
     return BatchRequest(inputs=urls, settings=settings, **kw)
 
 
-EXPECTED_VIDEO_PATH_PARTS = ("x", "someuser", f"{DATE}_1750111111111111111.mp4")
+EXPECTED_VIDEO_PATH_PARTS = ("x", "someuser", "1750111111111111111.mp4")
 
 
 async def test_single_url_happy_path(settings: Settings) -> None:
@@ -172,6 +168,35 @@ async def test_single_url_happy_path(settings: Settings) -> None:
         assert state.batches()[0]["origin"] == "cli"
     finally:
         state.close()
+
+
+async def test_owner_example_names_file_by_bare_id(settings: Settings) -> None:
+    """Owner's exact example: the URL's status id IS the filename.
+
+    https://x.com/Rainmaker1973/status/2111083867478368447 must land as
+    2111083867478368447.mp4 in the author folder — the default template is
+    {id}, not {date}_{id}. Sidecar follows the media name automatically
+    (sidecar_path = <media name>.meta.json)."""
+    owner_id = "2111083867478368447"
+    body = b"media-owner-example"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "cdn.syndication.twimg.com":
+            return httpx.Response(200, json=_video_tweet(owner_id, "Rainmaker1973"))
+        if request.url.host == "video.twimg.com":
+            return httpx.Response(200, content=body,
+                                  headers={"content-length": str(len(body))})
+        return httpx.Response(404)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        report = await run_batch(
+            request_for([f"https://x.com/Rainmaker1973/status/{owner_id}"], settings),
+            client=client,
+        )
+    assert report.exit_code == 0 and report.ok == 1
+    dest = report.results[0].files[0]
+    assert dest == settings.storage.root / "x" / "Rainmaker1973" / f"{owner_id}.mp4"
+    assert dest.with_name(dest.name + ".meta.json").is_file()
 
 
 async def test_second_run_skips_without_network(settings: Settings) -> None:
@@ -317,7 +342,7 @@ async def test_multi_video_partial_completion_regression(settings: Settings) -> 
     assert report1.results[0].status == "partial"
     assert report1.results[0].detail.startswith("1/3 media ok")
     files1 = {p.name for p in report1.results[0].files}
-    assert files1 == {f"{DATE}_{MULTI_ID}.mp4"}
+    assert files1 == {f"{MULTI_ID}.mp4"}
 
     # Run 2: CDN healthy -> exactly the missing 2 download, #1 untouched
     client2, log2 = make_world()
@@ -332,9 +357,9 @@ async def test_multi_video_partial_completion_regression(settings: Settings) -> 
     # ItemResult.files holds ok outcomes only; the skipped #1 exists on disk
     dests = {p.name for p in settings.storage.root.rglob("*.mp4")}
     assert dests == {
-        f"{DATE}_{MULTI_ID}.mp4",
-        f"{DATE}_{MULTI_ID}_v2.mp4",
-        f"{DATE}_{MULTI_ID}_v3.mp4",
+        f"{MULTI_ID}.mp4",
+        f"{MULTI_ID}_v2.mp4",
+        f"{MULTI_ID}_v3.mp4",
     }
     # one sidecar per media file
     sidecars = list(settings.storage.root.rglob("*.meta.json"))

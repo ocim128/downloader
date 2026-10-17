@@ -43,7 +43,8 @@ python -m xdl.ui --no-open    # or just print the URL
 ```
 
 Per post you get: the best-bitrate MP4 at
-`downloads/x/<author>/<date>_<id>.mp4` (deterministic, Windows-safe), a
+`downloads/x/<author>/<id>.mp4` (deterministic, Windows-safe — the filename
+is exactly the status id from the URL), a
 `<name>.meta.json` sidecar (caption, author, source URL, dims, size), and a
 row in the local SQLite state store so re-runs **skip** already-downloaded
 posts and `retry-failed` picks up the rest. Multi-video posts produce

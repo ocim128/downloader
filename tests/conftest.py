@@ -28,7 +28,6 @@ def settings(tmp_root: Path, tmp_path: Path) -> Settings:
         storage={
             "root": tmp_root,
             "layout": "by-author",
-            "filename_template": "{date}_{id}",
             "db_path": tmp_path / "state" / "state.db",
         },
         resolver={"fallback": "none"},

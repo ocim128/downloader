@@ -326,3 +326,53 @@ main yet -> marked TODO in `cli.main()` to call `setup_logging(settings)`.
   counts-free rows to "N item(s) · origin". Missed by round-2 tests because
   every test DB had empty history. Regression:
   `test_state_history_renders_on_index`. Gates: 318 tests / ruff / mypy.
+
+## Agent naming notes
+
+**2026-10-17 — naming-by-id on `feat/naming-by-id` (single-lane task; branch
+for owner integration, not merged).**
+
+Owner decision: default output filename must be **exactly the tweet id** from
+the URL (`.../Rainmaker1973/2111083867478368447` →
+`downloads/x/Rainmaker1973/2111083867478368447.mp4`). Duplicates are a
+non-issue for this single-user local tool; an id-named file maps 1:1 to its
+source URL.
+
+- **Changed in exactly the two places the default lives**:
+  `config.py StorageCfg.filename_template` and `naming.py render_path(template=...)`
+  — `{date}_{id}` → `{id}`. Layouts untouched (default stays `by-author`);
+  multi-video `_v{index}` suffix untouched (now on the bare id:
+  `<id>_v2.mp4`); no migration pass, per task rules.
+- **Sidecar convention is `<media name>.meta.json`, extension included** —
+  i.e. `<id>.mp4.meta.json`, NOT the `<id>.meta.json` the task example
+  parenthesized. `sidecar_path()` (storage/sidecar.py) appends `.meta.json`
+  to the full media filename; the task said "follows the media file
+  automatically — verify, don't special-case", so the convention is
+  unchanged and verified (owner-example regression asserts it).
+- **`{date}_{id}` still works when configured**: covered at both layers —
+  `test_render_path_date_id_template_still_supported` (unit/naming) and
+  `test_toml_only` now sets `filename_template = "{date}_{id}"` in TOML and
+  asserts it round-trips through `Settings.load`.
+- **conftest no longer pins `filename_template`** — the hermetic settings
+  fixture previously hardcoded `{date}_{id}`; dropping the pin makes every
+  integration test exercise the real default (a future default change
+  tripwires the suite). `DATE` constant + `datetime` import removed from
+  test_pipeline (no longer referenced).
+- **New regression**: `test_owner_example_names_file_by_bare_id`
+  (integration) — bespoke MockTransport world, asserts the owner's exact URL
+  lands `x/Rainmaker1973/2111083867478368447.mp4` + sidecar.
+- **No-migration verified by design**: skip reads the stored `file_path`
+  from `state.db` (docs/05 determinism contract), so `{date}_{id}`-era rows
+  keep skipping; old/new names coexist. No test change needed for this —
+  existing skip tests run through the same state-anchored path.
+- **Docs**: tech/05 (layout table + default para + `_v2` example), tech/07
+  sample, `docs/config-template.toml` (now lists available vars in the
+  comment), README path example; CHANGELOG `[Unreleased]` entry added.
+  **Left as-is deliberately**: `docs/05-implementation-plan.md:54` still says
+  `{date}_{id}.mp4` in the M0 checklist — historical plan text, superseded
+  by tech/05; flagging rather than rewriting history.
+- UI tests needed no changes: the UI stub already used bare
+  `downloads/{tweet_id}.mp4` shapes and real-core assertions are
+  name-agnostic.
+- Gates on branch: **320 passed** (was 318; +2 tests) / `ruff check .`
+  clean / `mypy src` strict clean (29 files). All hermetic, no network.
