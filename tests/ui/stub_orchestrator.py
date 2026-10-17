@@ -37,9 +37,18 @@ EventFn = Callable[[ProgressEvent], None]
 
 @dataclass
 class StubOrchestrator:
-    """The documented `run_batch` contract, in miniature."""
+    """The documented `run_batch` contract, in miniature.
+
+    Round 2: happy-path endpoint tests moved to the real core
+    (`tests/ui/real_core.py`). The stub remains ONLY for the fault-injection
+    cases that cannot be asserted reliably against an instantaneous mock core
+    (second-job 409 while running, deterministic SSE tick order, mid-batch
+    crash, 429-style total failure) — see test_serve.py fault section.
+    """
 
     tick: float = 0.01  # seconds between synthetic progress ticks
+    fail_code: str | None = None  # if set, EVERY item fails with this code
+    crash_after_resolve: bool = False  # raise mid-batch on the first item
 
     def __post_init__(self) -> None:
         self.batches: list[dict[str, Any]] = []
@@ -82,6 +91,9 @@ class StubOrchestrator:
 
         results: list[ItemResult] = []
         for idx, raw in enumerate(inputs):
+            if self.crash_after_resolve and idx == 0:
+                # Fault injection: die mid-batch, after the first resolve.
+                raise RuntimeError("simulated mid-batch crash")
             tweet_id = _synthetic_id(raw)
             ref = TweetRef(
                 tweet_id=tweet_id,
@@ -93,7 +105,16 @@ class StubOrchestrator:
             emit(EventKind.resolve_done, tweet_id=tweet_id,
                  detail=ref.canonical_url)
 
-            fail = (batch_id + idx) % 10 == 9 and not req.dry_run
+            if self.fail_code is not None:
+                fail = True
+                error = XdlError(ErrorCode(self.fail_code), "injected failure (stub)")
+            else:
+                fail = (batch_id + idx) % 10 == 9 and not req.dry_run
+                error = (
+                    XdlError(ErrorCode.HLS_FAILED, "intentional stub failure")
+                    if fail
+                    else None
+                )
             outcome_status: str = "failed" if fail else ("skipped" if req.dry_run else "ok")
 
             if outcome_status != "skipped":
@@ -105,14 +126,13 @@ class StubOrchestrator:
                          media_index=1, offset=step * 250, total=1_000)
                 emit(EventKind.download_done, tweet_id=tweet_id, media_index=1,
                      status=outcome_status,
-                     detail="intentional stub failure" if fail else "1000 bytes")
+                     detail=error.detail if fail else "1000 bytes")
 
             outcome = MediaOutcome(
                 index=1,
                 status=outcome_status,
                 file=None if outcome_status != "ok" else Path("downloads") / f"{tweet_id}.mp4",
-                error=XdlError(ErrorCode.HLS_FAILED, "intentional stub failure")
-                if fail else None,
+                error=error,
             )
             item = ItemResult(
                 ref=ref,
