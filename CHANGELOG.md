@@ -5,6 +5,16 @@ Private, local batch downloader for X (Twitter) video posts. Dates are
 
 ## [Unreleased] — 2026-10-17
 
+### Fixed
+
+- **The web UI 404s behind a forward proxy.** A proxy forwards loopback requests in
+  RFC 9112 absolute-form (`POST http://127.0.0.1:7788/jobs`). uvicorn's h11 parser
+  leaves the whole URI in `scope["path"]`, so the first request on a connection works
+  and every subsequent one 404s. `_AbsoluteFormMiddleware` now rewrites loopback
+  absolute-form targets before routing; foreign authorities are left untouched and
+  still hit the Host guard. Found via `scripts/ui_smoke.py` on a machine with
+  `HTTP_PROXY` set. Regression tests: 5 in `tests/ui/test_serve.py`.
+
 ### Removed (complexity audit, round 3)
 
 - **Logging subsystem deleted**: `report/logging.py`, `LogCfg`, the `-v/-vv`

@@ -82,6 +82,11 @@ Where this file and `docs/` disagree, this file and the code win.
 21. **`/analyze` goes through `xdl.app.analyze` + one `to_card` shaper.**
     There is one analyze implementation; the UI path gets the same throttle
     and typed errors as the CLI.
+22. **The UI accepts RFC 9112 absolute-form request targets.** A forward proxy
+    forwards loopback requests as `POST http://127.0.0.1:7788/jobs`; uvicorn's
+    h11 parser does not normalize that, so routing 404s. Middleware rewrites
+    the target when the authority is loopback, and leaves anything else to the
+    Host guard. Do not remove it to "simplify" the middleware stack.
 
 ## Deliberately not built
 

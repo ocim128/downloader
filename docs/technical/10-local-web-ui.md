@@ -95,6 +95,11 @@ until the post is resolved. So both flows exist:
   input at 500 URLs/request and the page is `Content-Security-Policy: default-src 'self'`
   so a drive-by page can't script it.
 - DNS-rebinding: check `Host` header is `127.0.0.1:7788`/`localhost:7788`, else 403.
+- Proxy absolute-form targets: a forward proxy forwards `POST http://127.0.0.1:7788/jobs`.
+  RFC 9112 requires servers to accept that form, and uvicorn's h11 parser does not
+  normalize it — it lands in `scope["path"]` and every route 404s. A middleware
+  rewrites loopback absolute-form targets before routing (foreign authorities are left
+  alone and still hit the Host guard).
 - No file serving of the downloads tree through HTTP — `reveal` shells out to the OS
   file manager instead (never expose a directory-listing endpoint by accident).
 

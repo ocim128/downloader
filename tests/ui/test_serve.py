@@ -458,3 +458,75 @@ def test_state_history_renders_on_index(tmp_path: Path) -> None:
         assert "item(s)" in page.text  # counts-free degradation visible
         jobs = test_client.get("/jobs").json()["jobs"]
         assert jobs[0]["started_at"] > 0
+
+
+# --------------------------------------------------------------------------- #
+# Proxy absolute-form request targets (RFC 9112 §3.2.2)
+# --------------------------------------------------------------------------- #
+
+def _scope(target: str) -> dict[str, Any]:
+    return {
+        "type": "http",
+        "asgi": {"version": "3.0", "spec_version": "2.3"},
+        "http_version": "1.1",
+        "method": "GET",
+        "scheme": "http",
+        "path": target,
+        "raw_path": target.encode(),
+        "query_string": b"",
+        "root_path": "",
+        "headers": [(b"host", b"127.0.0.1:7788")],
+        "client": ("127.0.0.1", 50000),
+        "server": ("127.0.0.1", 7788),
+    }
+
+
+def test_absolute_form_target_is_normalized() -> None:
+    scope = _scope("http://127.0.0.1:7788/jobs?x=1")
+    ui_app._normalize_absolute_target(scope)
+    assert scope["path"] == "/jobs"
+    assert scope["raw_path"] == b"/jobs"
+    assert scope["query_string"] == b"x=1"
+
+
+def test_absolute_form_without_path_means_root() -> None:
+    scope = _scope("http://localhost:7788")
+    ui_app._normalize_absolute_target(scope)
+    assert scope["path"] == "/"
+
+
+def test_absolute_form_foreign_host_is_not_rewritten() -> None:
+    scope = _scope("http://evil.example/jobs")
+    ui_app._normalize_absolute_target(scope)
+    assert scope["path"] == "http://evil.example/jobs"
+
+
+def test_origin_form_is_untouched() -> None:
+    scope = _scope("/jobs")
+    ui_app._normalize_absolute_target(scope)
+    assert scope["path"] == "/jobs"
+
+
+async def test_absolute_form_request_reaches_the_router(tmp_path: Path) -> None:
+    """The whole point: an absolute-form target must not 404.
+
+    A forward proxy forwards `GET http://127.0.0.1:7788/ HTTP/1.1`; uvicorn's
+    h11 parser leaves the URI in scope["path"], so without the middleware the
+    index route misses and the page 404s.
+    """
+    async def _run(req: Any, **kw: Any) -> Any:  # pragma: no cover
+        raise AssertionError("run_batch must not be called here")
+
+    app = create_app(_settings(tmp_path), _run)
+    messages: list[dict[str, Any]] = []
+
+    async def receive() -> dict[str, Any]:
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message: dict[str, Any]) -> None:
+        messages.append(message)
+
+    await app(_scope("http://127.0.0.1:7788/"), receive, send)
+    assert messages[0]["type"] == "http.response.start"
+    assert messages[0]["status"] == 200
+

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import json as _json
+import re
 import subprocess
 import sys
 import time
@@ -27,6 +28,7 @@ from dataclasses import asdict, dataclass, field
 from itertools import count
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlsplit
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -61,6 +63,53 @@ CSP = (
     "style-src 'self'; script-src 'self'"
 )
 _ALLOWED_HOSTS = frozenset({"127.0.0.1", "localhost"})
+
+#: RFC 9112 absolute-form request target ("POST http://host:port/path").
+_ABS_TARGET_RE = re.compile(r"^https?://", re.IGNORECASE)
+
+
+class _AbsoluteFormMiddleware:
+    """Accept absolute-form request targets before routing sees them.
+
+    A forward proxy (corporate Windows, some transparent proxies) forwards
+    loopback requests as ``POST http://127.0.0.1:7788/jobs``. RFC 9112 says
+    servers MUST accept that form; uvicorn's h11 parser instead leaves the
+    whole string in ``scope["path"]``, so every route 404s. Normalize it here.
+    Only loopback authorities are rewritten — anything else keeps the normal
+    403/404 path.
+    """
+
+    def __init__(self, app: Any) -> None:
+        self.app = app
+
+    async def __call__(
+        self,
+        scope: dict[str, Any],
+        receive: Callable[[], Awaitable[dict[str, Any]]],
+        send: Callable[[dict[str, Any]], Awaitable[None]],
+    ) -> None:
+        if scope["type"] == "http":
+            _normalize_absolute_target(scope)
+        await self.app(scope, receive, send)
+
+
+def _normalize_absolute_target(scope: dict[str, Any]) -> None:
+    """Rewrite ``scope["path"]`` in place when it holds an absolute-form URI."""
+    target = scope.get("path") or ""
+    if not _ABS_TARGET_RE.match(target):
+        return
+    try:
+        parts = urlsplit(target)
+        host = (parts.hostname or "").lower()
+    except ValueError:  # malformed port etc. — let the router 404 it
+        return
+    if host not in _ALLOWED_HOSTS:
+        return
+    path = parts.path or "/"
+    scope["path"] = unquote(path)
+    scope["raw_path"] = path.encode("ascii", "ignore")
+    if parts.query:
+        scope["query_string"] = parts.query.encode("ascii", "ignore")
 
 
 # --------------------------------------------------------------------------- #
@@ -224,6 +273,8 @@ def create_app(
     """Assemble the web UI; orchestrator/history/reveal are injected callables."""
     hub = _Hub()
     app = FastAPI(title="xdl", docs_url=None, redoc_url=None, openapi_url=None)
+    # Outermost user middleware: normalize proxy absolute-form targets first.
+    app.add_middleware(_AbsoluteFormMiddleware)
     app.mount("/static", StaticFiles(directory=str(_UI_DIR / "static")), name="static")
 
     @app.middleware("http")
