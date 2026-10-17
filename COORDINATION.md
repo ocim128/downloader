@@ -239,3 +239,61 @@ main yet -> marked TODO in `cli.main()` to call `setup_logging(settings)`.
   4. **`hub.running_id` single-slot** can bite a user with a long batch wanting multiple sequential batches — acceptable per spec (one in-flight, 409 otherwise).
   5. **SSE closes after `batch_done`** (backlog + heartbeat until terminal event) — page re-opens with dedup-by-seq if needed; late joiners get full history since hub retains all events for the session.
 - **Not in this lane**: nothing else pending on my side for M3. Remaining for full closure: Agent A's M4/M5/M6 core pieces + final doc sweep.
+
+### 2026-10-17 (round 2) — P1-P4 complete on `feat/ui-2` (commits 9c84358/7c1a2f2/2f9eb9c)
+
+- **P1 - UI on the real core** (`tests/ui/real_core.py` + rewritten `tests/ui/test_serve.py`):
+  `RealCoreRunner` wraps the REAL `xdl.app.run_batch` with an injected `httpx.MockTransport`
+  world built from the recorded fixtures under `tests/fixtures/` (chibicode video / F1
+  video / cwsports photo/gif/likewise; unknown ids → 404 dog client; media bodies are
+  `b"media:<filename>"`). The UI's happy path, skip-on-rerun, mixed-batch, retry, quality
+  pass-through, analyze, reveal, and all 4xx/5xx shapes now run end-to-end against the real
+  orchestrator; the stub remains only for fault injection (409 race, crash-after-resolve,
+  429 storm, exact SSE tick order). `hub.summary` now surfaces `"error": job.error`.
+  `scripts/ui_smoke.py` boots the app on a random localhost port and posts real batches —
+  used as the live restart-check for `python -m xdl.ui`.
+- **P2 - M6 shipped** in my lane: `src/xdl/config.py` now completes the precedence design
+  (see CHANGELOG): CLI > `XDL_*` env (mechanical `XDL_SECTION__FIELD` + conveniences
+  `XDL_OUTPUT/XDL_CONCURRENCY/XDL_RESOLVE_CONCURRENCY/XDL_FALLBACK/XDL_LOG_LEVEL`; empty
+  values skipped) > `config.toml` > defaults, plus **unknown-key warn-and-drop** (UserWarning,
+  2 levels) so stale templates can't brick the CLI, plus `LogCfg.dir`/`LogCfg.console_level`.
+  `src/xdl/report/logging.py::setup_logging(settings, *, verbose=0)`: rich console per `-v`,
+  rotating 5 MB × 3 file handler at `%LOCALAPPDATA%/xdl/logs/xdl.log` (INFO always-on),
+  cookie-value redaction filter (auth_token/ct0/...) on the file handler. Signature
+  preserved as `Settings.load(overrides, *, config_path=None, read_env=True)` (Agent A's
+  `cli.py` 137/162 call `Settings.load(overrides)` — no merge break).
+- **CLI logging wiring is pending on your lane** (not mine to edit `cli.py`): in
+  `cli.main()`, after `settings = Settings.load(overrides)`, call
+  `from xdl.report.logging import setup_logging; setup_logging(settings, verbose=verbose)`.
+  Not actually wired anywhere yet by me, so nothing double-initializes.
+- **P3 - docs reconciliation shipped** (README.md refresh, docs/README.md/docmap ok as-is,
+  docs/02 architecture + concurrency/appDir edits, 04-project-structure full tree+signatures
+  resync incl. `select(media, policy) -> list[Chosen]` (dev. 1), `run_batch(req, *, client,
+  on_event)` (dev. 2), `Author.verified` (dev. 4), BatchRequest flags (dev. 5), 05-milestones
+  M0-M3 ticked + M1 spike findings, tech/07 shipped CLI surface + config file + log paths.
+- **P4 - manual Windows matrix, live results** (exits always via `xdl` on fresh PowerShell):
+  | # | Case | Result |
+  |---|------|--------|
+  | 1 | fresh SMP → download | PASS (ok 1, exit 0) |
+  | 2 | second run skips all | PASS (skipped, exit 0) |
+  | 3 | `-f` file w/ comments, blanks, in-batch dups, fxtwitter-mirror dedup | PASS (SKIPPED_DUP_INPUT counted, folded by tweet id) |
+  | 4 | photo-only → NO_VIDEO | PASS (failed, exit 1) |
+  | 5 | tombstone + never-existed → both NOT_EMBEDDABLE | PASS (exit 1/2; confirmed indistinguishable) |
+  | 6 | animated_gif → mp4 downloaded | PASS |
+  | 7 | `--dry-run` fresh post | PASS (prints `would write ...` path, writes nothing — file count before/after identical) |
+  | 8 | `XDL_OUTPUT` + `XDL_CONCURRENCY` env override + rerun-skip across output move | PASS (file landed in alt dir; skip survives since state db is time-independent of output dir) |
+  | 9 | 220-line `-f file` unattended (dup-heavy + failures) | PASS (ok 0/skipped 219/failed 1/exit 1; tombstone retried once, 3 videos dedup-skipped) |
+  | 10 | live multi-video post + `xdl retry-failed` on partial | **NOT RUN** — could not source a live multi-video; `find_candidates.py timeline-screen-name` is 429-dead (a known finding) and no other id source; hermetic coverage exists (`tests/integration/test_pipeline.py::test_multi_video_partial_then_retry`) |
+  | 11 | Ctrl+C mid-download → re-run resumes at offset | **NOT RUN** — no long-download candidate at hand; M4 graceful Ctrl+C also not on main; hermetic resume is proven at `tests/unit/test_downloader.py:63` `test_resume_sends_range_and_merges` |
+  | 12 | `--audio-only`, `xdl config`, `xdl db` | **BLOCKED** — these surface pieces are not on main yet (M5/M6-A), see tech/07's shipped/planned table |
+- **Bug filed against your lane (state-app-like)**: retry of a previously-FAILED `NO_VIDEO`
+  item now reports `ok 0 · skipped 1` instead of failed: `app.py`'s `upsert_tweet` records
+  `media_count=0` for photo-only posts → `seen_complete()` (ok_rows == media_count) sees
+  0 == 0 → counted complete → skip. A fix likely needs an `engine_result`-aware decision (or
+  persist NO_VIDEO/NOT_EMBEDDABLE as failure states instead of `media_count=0` + generic
+  de-mapping). Canary reproducer + rationale live in `tests/ui/README.md` filings section.
+  Fine to defer to `feat/core-2`.
+- **Gates at handoff**: `pytest` 248 passed / `ruff check .` clean / `mypy` strict clean
+  (29 files). No live-network test paths added.
+- All results quoted from live local runs against `main` HEAD-as-of-2f9eb9c; nothing
+  merged to main or `feat/core-2` from this lane.

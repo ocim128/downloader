@@ -122,6 +122,7 @@ class _Hub:
             "started_at": job.started,
             "inputs": len(job.inputs),
             "in_flight": self.running_id == job.id,
+            "error": job.error,
         }
 
     def history(self, limit: int = 50) -> list[dict[str, Any]]:
