@@ -1,0 +1,7 @@
+#EXTM3U
+#EXT-X-KEY:METHOD=SAMPLE-AES,URI="skd://fairplay.key",KEYFORMAT="com.apple.streamingkeydelivery"
+#EXT-X-TARGETDURATION:10
+#EXTINF:9.997,
+seg-0.ts
+seg-0.ts
+#EXT-X-ENDLIST

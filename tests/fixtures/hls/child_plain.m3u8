@@ -1,0 +1,10 @@
+#EXTM3U
+#EXT-X-VERSION:4
+#EXT-X-TARGETDURATION:10
+#EXTINF:9.997,
+seg-0.ts
+seg-0.ts
+#EXTINF:5.003,
+seg-1.ts
+seg-1.ts
+#EXT-X-ENDLIST

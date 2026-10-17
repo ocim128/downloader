@@ -1,0 +1,9 @@
+#EXTM3U
+#EXT-X-MEDIA-SEQUENCE:0
+#EXT-X-KEY:METHOD=Widevine,URI="widevine.key",KEYFORMAT="com.microsoft.playready"
+#EXT-X-VERSION:5
+#EXT-X-TARGETDURATION:6
+#EXTINF:5.999,
+seg-0.ts
+seg-0.ts
+#EXT-X-ENDLIST
