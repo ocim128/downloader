@@ -242,6 +242,8 @@ class BatchRequest(BaseModel):
     id_mode: bool = False  # treat bare numeric arguments as tweet ids
     force: bool = False
     no_meta: bool = False
+    quality: str | None = None  # 'best' | 'worst' | height number
+    dry_run: bool = False  # resolve + print planned paths, download nothing
 
 
 class TweetRow(BaseModel):

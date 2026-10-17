@@ -15,12 +15,13 @@ def tmp_root(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def settings(tmp_root: Path) -> Settings:
+def settings(tmp_root: Path, tmp_path: Path) -> Settings:
     """Hermetic settings: everything under pytest's tmp dir, no APPDATA use."""
     return Settings(
         storage={
             "root": tmp_root,
             "layout": "by-author",
             "filename_template": "{date}_{id}",
+            "db_path": tmp_path / "state" / "state.db",
         }
     )

@@ -57,6 +57,10 @@ select = [
     "RUF", # ruff-specific
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# typer's API is literally "call Option() in the default"
+"src/xdl/cli.py" = ["B008"]
+
 [tool.mypy]
 mypy_path = "src"
 packages = ["xdl"]

@@ -23,6 +23,7 @@ class StorageCfg(BaseModel):
     root: Path = Path("downloads")  # cwd-relative default (spec'd)
     layout: str = DEFAULT_LAYOUT
     filename_template: str = "{date}_{id}"
+    db_path: Path | None = None  # None -> <app_dir>/state.db (platformdirs)
 
 
 class ResolverCfg(BaseModel):
@@ -85,6 +86,8 @@ class Settings(BaseModel):
 
     @property
     def db_path(self) -> Path:
+        if self.storage.db_path is not None:
+            return self.storage.db_path
         return self.app_dir / "state.db"
 
 
