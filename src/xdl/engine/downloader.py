@@ -14,7 +14,7 @@ from pathlib import Path
 import httpx
 
 from xdl.engine.throttle import ThrottleState, parse_retry_after
-from xdl.models import DownloadJob, ErrorCode, LinkExpiredError, XdlError
+from xdl.models import CancelToken, DownloadJob, ErrorCode, LinkExpiredError, XdlError
 from xdl.urls import is_allowed_media_url
 
 #: cb(delta_bytes, total_bytes_or_None)
@@ -29,6 +29,7 @@ async def fetch(
     *,
     cb: ProgressFn | None = None,
     throttle: ThrottleState | None = None,
+    cancel: CancelToken | None = None,
 ) -> Path:
     """Stream one file to `job.dest` via a `.part` temp; returns final path.
 
@@ -37,9 +38,13 @@ async def fetch(
     - Unknown length tolerated (no false INTEGRITY_MISMATCH).
     - Known length verified exactly; mismatch deletes the `.part` and fails.
     - 403 on the media URL -> LinkExpiredError (orchestrator re-resolves once).
+    - CANCELLED raises per chunk (Ctrl+C graceful drain); the `.part` written
+      so far is retained for resume.
     """
     if not is_allowed_media_url(job.url):
         raise XdlError(ErrorCode.URL_UNRECOGNIZED, f"media URL host not allowed: {job.url}")
+    if cancel is not None and cancel.cancelled:
+        raise XdlError(ErrorCode.CANCELLED, "cancelled before request")
 
     dest = job.dest
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -73,6 +78,12 @@ async def fetch(
 
             with part.open("ab" if offset else "wb") as f:
                 async for chunk in r.aiter_bytes(_CHUNK):
+                    if cancel is not None and cancel.cancelled:
+                        # Finish the current chunk boundary, then stop; the
+                        # bytes written so far stay in `.part` for resume.
+                        raise XdlError(
+                            ErrorCode.CANCELLED, "cancelled mid-transfer (.part retained)"
+                        )
                     f.write(chunk)
                     if cb is not None:
                         cb(len(chunk), total)

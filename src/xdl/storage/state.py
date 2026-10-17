@@ -211,6 +211,26 @@ class StateStore:
         )
         self._conn.commit()
 
+    def mark_tweet_incomplete_if_untracked(self, tweet_id: str) -> None:
+        """Circuit-breaker marker (docs/technical/08): record the tweet as
+        incomplete so `xdl retry-failed` picks it up. Only inserts when the
+        tweet has NO downloads rows — never clobbers an ok/partial history
+        (PRIMARY KEY (tweet_id, media_index) would overwrite an ok row)."""
+        cur = self._conn.execute(
+            "SELECT 1 FROM downloads WHERE tweet_id = ? LIMIT 1", (tweet_id,)
+        )
+        if cur.fetchone() is not None:
+            return
+        self.record(
+            DownloadRow(
+                tweet_id=tweet_id,
+                media_index=1,
+                file_path=Path(f"{tweet_id}.unresolved"),
+                status="incomplete",
+                error="SKIPPED_CIRCUIT_OPEN",
+            )
+        )
+
     def failed_items(self, since: str | None = None) -> list[TweetRef]:
         """Distinct refs for rows with status IN (failed, incomplete) — powers
         `xdl retry-failed`."""

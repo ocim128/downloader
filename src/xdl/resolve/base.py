@@ -67,16 +67,38 @@ def _terminal_error(errors: list[XdlError], names: list[str]) -> XdlError:
 
 
 def build_chain(settings: Settings, client: httpx.AsyncClient) -> FallbackChain:
-    """Wire the adapter chain per resolver config.
+    """Wire the adapter chain per resolver config (docs/technical/02).
 
-    `fallback = "auto"` currently means syndication fast-path; the yt-dlp
-    second hop (Adapter D) lands with M4 and slots in here automatically
-    whenever it is importable.
+    Order: syndication fast-path -> yt-dlp (Adapter D) whenever importable
+    under `fallback = "auto"` (the default — NOT_EMBEDDABLE posts get the
+    safety-net second hop) -> fxtwitter when explicitly configured. Chain
+    composition per fallback setting:
+
+    - `auto`      [syndication, ytdlp]  (ytdlp silently skipped if the bundled
+                  dep is somehow missing)
+    - `ytdlp`     [syndication, ytdlp]  (missing dep fails fast — explicit ask)
+    - `fxtwitter` [syndication, fxtwitter]
+    - `none`      [syndication]
     """
-    from xdl.resolve.fxtwitter import FxtwitterResolver
     from xdl.resolve.syndication import SyndicationResolver
 
     adapters: list[Resolver] = [SyndicationResolver(client)]
-    if settings.resolver.fallback == "fxtwitter":
+    fallback = settings.resolver.fallback
+    if fallback in ("auto", "ytdlp"):
+        try:
+            import yt_dlp  # noqa: F401  (importability is the "auto" gate)
+
+            from xdl.resolve.ytdlp import YtdlpResolver
+
+            adapters.append(YtdlpResolver(mode=settings.resolver.ytdlp_mode))
+        except ImportError:
+            if fallback == "ytdlp":
+                raise XdlError(
+                    ErrorCode.UPSTREAM_ERROR,
+                    "yt-dlp is not installed — pip install -U yt-dlp",
+                ) from None
+    if fallback == "fxtwitter":
+        from xdl.resolve.fxtwitter import FxtwitterResolver
+
         adapters.append(FxtwitterResolver(client))
     return FallbackChain(adapters)

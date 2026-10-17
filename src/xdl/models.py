@@ -39,6 +39,11 @@ class ErrorCode(StrEnum):
     DISK_FULL = "DISK_FULL"
     WRITE_ERROR = "WRITE_ERROR"
     CANCELLED = "CANCELLED"
+    # M5 additions (not in the docs/technical/08 table — noted in
+    # COORDINATION.md): ffmpeg needed for a conversion the user asked for, and
+    # a failed conversion run.
+    FFMPEG_REQUIRED = "FFMPEG_REQUIRED"
+    TRANSCODE_FAILED = "TRANSCODE_FAILED"
 
 
 #: Codes whose XdlError is retryable per-item (docs/technical/08 retry table).
@@ -79,6 +84,24 @@ class LinkExpiredError(XdlError):
 
     def __init__(self, detail: str = "") -> None:
         super().__init__(ErrorCode.LINK_EXPIRED, detail, retry_after=0.0)
+
+
+class CancelToken:
+    """Cooperative Ctrl+C signal shared by CLI -> orchestrator -> engine.
+
+    Plain (non-pydantic) mutable flag: the CLI's SIGINT handler sets it from
+    the main thread between bytecode steps; async stages poll it at chunk /
+    item granularity. First press = graceful drain, second = hard exit (the
+    `.part` invariant makes the hard exit safe — docs/technical/03).
+    """
+
+    __slots__ = ("cancelled",)
+
+    def __init__(self) -> None:
+        self.cancelled = False
+
+    def cancel(self) -> None:
+        self.cancelled = True
 
 
 # --------------------------------------------------------------------------- #
@@ -202,6 +225,7 @@ class ItemResult(BaseModel):
 class BatchReport(BaseModel):
     results: list[ItemResult] = []
     exit_code: int = 0  # 0/1/2 folding per docs/technical/07
+    cancelled: bool = False  # Ctrl+C mid-run: CLI exits 130 instead (docs/tech/08)
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -244,6 +268,8 @@ class BatchRequest(BaseModel):
     no_meta: bool = False
     quality: str | None = None  # 'best' | 'worst' | height number
     dry_run: bool = False  # resolve + print planned paths, download nothing
+    audio_only: bool = False  # M5: extract MP3 instead of keeping the video
+    gif: bool = False  # M5: convert X's mp4-as-gif to a real GIF
 
 
 class TweetRow(BaseModel):

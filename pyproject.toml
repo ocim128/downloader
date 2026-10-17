@@ -69,6 +69,12 @@ strict = true
 warn_unreachable = true
 pretty = true
 
+[[tool.mypy.overrides]]
+# yt-dlp ships no type stubs; resolve/ytdlp.py treats it as Any (the
+# ydl_factory seam keeps the mapping logic typed + hermetic).
+module = "yt_dlp.*"
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"

@@ -19,6 +19,7 @@ class ThrottleState:
         self._min_gap = min_gap if min_gap is not None else random.uniform(0.2, 0.5)
         self._pause_until = 0.0
         self._last_request = 0.0
+        self._recent_429s: list[float] = []  # monotonic timestamps (escalation)
 
     @property
     def min_gap(self) -> float:
@@ -37,9 +38,25 @@ class ThrottleState:
         self._last_request = time.monotonic()
 
     def report_429(self, retry_after: str | None) -> None:
-        """One 429 pauses everyone: pause_until = now + max(ra, 30s)."""
+        """One 429 pauses everyone: pause_until = now + max(ra, 30s)
+        (docs/technical/03)."""
         ra = parse_retry_after(retry_after) or 30.0
-        self._pause_until = max(self._pause_until, time.monotonic() + max(ra, 30.0))
+        self.report_pause(ra)
+
+    def report_pause(self, seconds: float) -> None:
+        """Record a 429-class pause (seconds already parsed by the caller).
+
+        Escalation per docs/technical/08: 3 x 429 within 60 s ->
+        pause_until = now + max(ra x 2, 120 s) — the run is being throttled,
+        not the request.
+        """
+        now = time.monotonic()
+        self._recent_429s = [t for t in self._recent_429s if now - t < 60.0]
+        self._recent_429s.append(now)
+        pause = max(seconds, 30.0)
+        if len(self._recent_429s) >= 3:
+            pause = max(pause * 2, 120.0)
+        self._pause_until = max(self._pause_until, now + pause)
 
 
 def parse_retry_after(raw: str | None) -> float | None:

@@ -2,19 +2,28 @@
 
 Surface per docs/technical/07: `xdl [OPTIONS] [URLS]...` as the default
 command (implemented as the typer callback with invoke_without_command), plus
-subcommands retry-failed (db/config/serve land with their milestones).
+subcommands retry-failed / serve / config. Ctrl+C: first press drains the
+batch gracefully (summary, exit 130); second press hard-exits (the `.part`
+invariant makes that safe).
 """
 
 from __future__ import annotations
 
 import contextlib
+import os
+import signal
 import sys
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import typer
 
 from xdl import __version__
+
+if TYPE_CHECKING:
+    from xdl.config import Settings
+    from xdl.models import CancelToken
 
 app = typer.Typer(
     name="xdl",
@@ -62,6 +71,19 @@ def default(
     ),
     no_meta: bool = typer.Option(False, help="Skip sidecar JSON files."),
     force: bool = typer.Option(False, help="Re-download even if state says complete."),
+    audio_only: bool = typer.Option(
+        "--audio-only",
+        help=(
+            "Extract MP3 instead of keeping the video (ffmpeg -q:a 0 = V0, the "
+            "best-possible VBR transcode; the source audio is already lossy AAC "
+            "— best possible, not lossless)."
+        ),
+    ),
+    gif: bool = typer.Option(
+        "--gif",
+        help=("Convert X's mp4-as-gif to a real GIF (ffmpeg palettegen/paletteuse, "
+              "15 fps). Output is large."),
+    ),
     concurrency: Optional[int] = typer.Option(  # noqa: UP045
         None, "--concurrency", "-c", min=1, help="Parallel file downloads [default: 3]."
     ),
@@ -88,6 +110,11 @@ def default(
     ),
 ) -> None:
     """xdl — download X (Twitter) videos locally."""
+    if audio_only and gif:
+        typer.secho(
+            "use one of --audio-only / --gif, not both", fg=typer.colors.RED, err=True
+        )
+        raise typer.Exit(code=2)
     _execute(
         urls=urls,
         file=file,
@@ -96,6 +123,8 @@ def default(
         quality=quality,
         no_meta=no_meta,
         force=force,
+        audio_only=audio_only,
+        gif=gif,
         concurrency=concurrency,
         resolve_concurrency=resolve_concurrency,
         delay=delay,
@@ -115,6 +144,8 @@ def _execute(
     quality: str | None,
     no_meta: bool,
     force: bool,
+    audio_only: bool = False,
+    gif: bool = False,
     concurrency: int | None,
     resolve_concurrency: int | None,
     delay: float | None,
@@ -130,7 +161,7 @@ def _execute(
 
     from xdl.app import run_batch
     from xdl.config import Settings
-    from xdl.models import BatchRequest
+    from xdl.models import BatchRequest, CancelToken
     from xdl.report.render import ConsoleReporter, print_no_tty_fallback
 
     overrides = _overrides(output, concurrency, fallback)
@@ -167,6 +198,8 @@ def _execute(
     if retries is not None:
         settings.engine.retries = retries
 
+    _warn_stale_ytdlp(settings)
+
     request = BatchRequest(
         inputs=inputs,
         settings=settings,
@@ -176,16 +209,63 @@ def _execute(
         no_meta=no_meta,
         quality=quality,
         dry_run=dry_run,
+        audio_only=audio_only,
+        gif=gif,
     )
 
+    token = CancelToken()
     console = Console()
-    with ConsoleReporter(console) as reporter:
-        report = asyncio.run(run_batch(request, on_event=reporter.handle))
+    with _sigint_handler(token), ConsoleReporter(console) as reporter:
+        report = asyncio.run(run_batch(request, on_event=reporter.handle, cancel=token))
     if not console.is_terminal:
         print_no_tty_fallback(report)
     else:
         reporter.summary(report)
+    if report.cancelled:
+        typer.echo(
+            "interrupted (Ctrl+C) — partial downloads are resumable; "
+            "re-run the command or use xdl retry-failed"
+        )
+        raise typer.Exit(code=130)
     raise typer.Exit(code=report.exit_code)
+
+
+def _warn_stale_ytdlp(settings: Settings) -> None:
+    """Startup check (docs/technical/02 Adapter D): warn when the installed
+    yt-dlp is older than ~14 days — but only when it's actually in the chain."""
+    if settings.resolver.fallback not in ("auto", "ytdlp"):
+        return
+    from xdl.resolve.ytdlp import stale_ytdlp_warning
+
+    if message := stale_ytdlp_warning():
+        typer.secho(f"warning: {message}", fg=typer.colors.YELLOW, err=True)
+
+
+@contextlib.contextmanager
+def _sigint_handler(token: CancelToken) -> Iterator[None]:
+    """First SIGINT: mark the cancel token (graceful drain, exit 130 after
+    the summary). Second SIGINT: immediate hard exit — the `.part` invariant
+    makes it safe (docs/technical/03)."""
+    count = 0
+
+    def handler(signum: int, frame: object) -> None:
+        nonlocal count
+        count += 1
+        if count >= 2:
+            os._exit(130)
+        token.cancel()
+
+    try:
+        previous = signal.signal(signal.SIGINT, handler)
+    except ValueError:
+        # Not the main thread (e.g. under some test runners): cancellation
+        # still works via the token itself.
+        yield
+        return
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGINT, previous)
 
 
 def _overrides(
@@ -257,7 +337,41 @@ def retry_failed(
     )
 
 
+@app.command(
+    name="serve",
+    context_settings={"ignore_unknown_options": True, "allow_extra_args": True},
+)
+def serve(ctx: typer.Context) -> None:
+    """Start the local web UI on 127.0.0.1 (see `python -m xdl.ui --help`)."""
+    # Delegation, not duplication: the UI lane owns the runner + its flags
+    # (and the loopback-only bind guard lives there, once).
+    from xdl.ui.__main__ import main as serve_main
+
+    sys.argv = ["xdl serve", *ctx.args]
+    serve_main()
+
+
+@app.command(name="config")
+def config_cmd() -> None:
+    """Print the resolved settings (defaults <- config.toml <- env <- CLI)."""
+    from xdl.config import Settings
+
+    settings = Settings.load()
+    config_file = settings.app_dir / "config.toml"
+    typer.echo(f"# config file: {config_file} ({'present' if config_file.is_file() else 'absent'})")
+    typer.echo(f"# state db:    {settings.db_path}")
+    # Per-value source tracking (file/env/default) lands with the config
+    # precedence milestone; today this renders the resolved merge.
+    for section, fields in settings.model_dump().items():
+        typer.echo(f"[{section}]")
+        for key, value in fields.items():
+            typer.echo(f"{key} = {value!r}")
+
+
 def main() -> None:
+    # Optional logging hook (B's lane): call setup_logging(settings) at
+    # startup once xdl.report.logging ships.
+    # TODO(core2): if module xdl.report.logging exists -> wire it here.
     # UTF-8 output guard for legacy Windows consoles (docs/technical/07).
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
