@@ -246,3 +246,28 @@ async def test_cancel_midstream_keeps_part(
     part = dest.with_name(dest.name + ".part")
     assert part.exists() and part.read_bytes() == BODY[:50]  # resumable
     assert not dest.exists()  # never a half-file posing as complete
+
+
+async def test_disk_write_errors_map_to_write_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A raw OSError from the write path must stay at item level (WRITE_ERROR),
+    never crash the batch (docs/technical/08 taxonomy)."""
+    from pathlib import Path as P
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=BODY)
+
+    real_open = P.open
+
+    def bad_open(self: P, *args: object, **kw: object) -> object:
+        if self.name.endswith(".part"):
+            raise PermissionError(13, "permission denied")
+        return real_open(self, *args, **kw)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(P, "open", bad_open)
+    async with client(handler) as c:
+        with pytest.raises(XdlError) as exc:
+            await fetch(job(tmp_path), c)
+    assert exc.value.code is ErrorCode.WRITE_ERROR
+    assert "permission denied" in exc.value.detail

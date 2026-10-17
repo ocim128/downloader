@@ -7,6 +7,7 @@ docs/technical/03. The engine never imports a resolver; a media-URL 403 raises
 from __future__ import annotations
 
 import asyncio
+import errno
 import os
 from collections.abc import Callable
 from pathlib import Path
@@ -94,6 +95,14 @@ async def fetch(
         raise XdlError(ErrorCode.NETWORK, f"timeout: {err}") from err
     except httpx.TransportError as err:
         raise XdlError(ErrorCode.NETWORK, f"connection failed: {err}") from err
+    except OSError as err:
+        # Disk-side failure while writing the .part (docs/technical/08):
+        # ENOSPC -> DISK_FULL (batch continues); anything else (perm, name,
+        # AV lock) -> WRITE_ERROR. Keeps the failure at ITEM level instead
+        # of crashing the batch with a raw OSError.
+        if getattr(err, "errno", None) == errno.ENOSPC:
+            raise XdlError(ErrorCode.DISK_FULL, f"out of space: {err}") from err
+        raise XdlError(ErrorCode.WRITE_ERROR, f"cannot write {part}: {err}") from err
 
     size = part.stat().st_size
     if total is not None and size != total:
