@@ -42,9 +42,9 @@ Key properties:
 - **Expired signed URLs (audit round 2, layering fix round 3)**: `video.twimg.com`
   URLs carry short-lived tokens; a resumed or long-running transfer can hit `403`
   mid-flight. A 403 on a *media* URL is `LINK_EXPIRED`, not `AUTH_REQUIRED`: the
-  engine's only job is to **raise `LinkExpiredError`** — it never calls a resolver
-  (layering rule 6). The **orchestrator** catches it, re-resolves the post, and
-  re-dispatches a fresh `DownloadJob` for the same rendition (resuming the Range when
+  engine's only job is to **raise `XdlError(LINK_EXPIRED)`** — it never calls a
+  resolver (layering rule 6). The **orchestrator** catches it, re-resolves the post,
+  and re-dispatches the transfer for the same rendition (resuming the Range when
   the object path is unchanged; restarting clean if the rendition changed) — once per
   item. Only a 403 at the *resolve* stage means auth/protected content.
 - **Atomic completion**: write to `.part`, `os.replace` to final name. A crash at any
@@ -56,21 +56,22 @@ Key properties:
   total unknown: progress renders indeterminate and integrity is "stream ended
   cleanly + rename succeeded" — **never** a mismatch verdict, and never a reason to
   destroy the `.part`. When the total is known → exact size match or
-  `INTEGRITY_MISMATCH` (delete `.part`, item fails, retryable on next run). Optional
-  `--checksum sha256` computes while streaming into the sidecar (not a gate by default —
-  CDNs don't publish digests; size + clean stream end is our practical bar).
+  `INTEGRITY_MISMATCH` (delete `.part`, item fails, retryable on next run). There is
+  no sha256 gate: CDNs don't publish digests, and size + a clean stream end is the
+  practical bar. `fetch(url, dest, client, *, cb, throttle, cancel)` takes exactly
+  those five things — no job object carrying fields nobody reads.
 - **Cancellation**: checked per chunk; propagates out, `.part` retained for resume.
 
-## Worker pool & concurrency
+## Concurrency
 
-- One `asyncio.Queue[DownloadJob]`; N download workers (default 3) consume it.
-- Resolve stage runs ahead with its own small semaphore (default 4) and enqueues jobs —
-  downloads and resolutions overlap, so a slow 500 MB file never delays resolving the
-  next URL.
-- Total in-flight HTTP requests bounded by `download_sem + resolve_sem` — a hard ceiling
-  keeps failure domains small and rate limits predictable.
-- ffmpeg subprocesses (HLS remux) count against a separate `ffmpeg_sem` (default 2) —
-  they're CPU/disk-bound, not network-bound.
+- One item-task per input; the orchestrator bounds it with two semaphores:
+  `resolve_sem` (default 4) for metadata lookups, `download_sem` (default 3) for
+  transfers. Resolves of later items overlap transfers of earlier ones, so a slow
+  500 MB file never delays resolving the next URL.
+- Total in-flight HTTP requests bounded by `download_sem + resolve_sem` — a hard
+  ceiling keeps failure domains small and rate limits predictable.
+- ffmpeg subprocesses (HLS remux, MP3/GIF conversion) are not network-bound; they run
+  inside the item task that needs them.
 
 ## Client configuration
 

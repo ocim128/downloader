@@ -15,6 +15,7 @@ from typing import Literal
 
 import httpx
 
+from xdl.engine.throttle import parse_retry_after
 from xdl.models import (
     Author,
     ErrorCode,
@@ -26,9 +27,6 @@ from xdl.models import (
 )
 
 SYNDICATION_URL = "https://cdn.syndication.twimg.com/tweet-result"
-
-DEFAULT_UA = "xdl/0.1 (+https://github.com/ocim128/downloader)"
-GOOGLEBOT_UA = "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
 
 # Features list captured from react-tweet's fetch-tweet.ts (drifts upstream;
 # stored as one constant, never modeled). Live-verified 2026-10-17.
@@ -191,7 +189,7 @@ class SyndicationResolver:
             raise XdlError(
                 ErrorCode.RATE_LIMITED,
                 "syndication rate limited",
-                retry_after=_retry_after_seconds(r.headers.get("retry-after")),
+                retry_after=parse_retry_after(r.headers.get("retry-after")),
             )
         raise XdlError(ErrorCode.UPSTREAM_ERROR, f"syndication HTTP {r.status_code}")
 
@@ -202,15 +200,6 @@ def _map_transport_error(err: httpx.HTTPError) -> XdlError:
     if isinstance(err, httpx.InvalidURL):
         return XdlError(ErrorCode.URL_UNRECOGNIZED, str(err))
     return XdlError(ErrorCode.NETWORK, f"connection failed: {err}")
-
-
-def _retry_after_seconds(raw: str | None) -> float | None:
-    if raw is None:
-        return None
-    try:
-        return float(raw)
-    except ValueError:
-        return None  # HTTP-date parsing lands with M4 throttle work
 
 
 def _map_payload(ref: TweetRef, payload: dict[str, object]) -> ResolvedTweet:

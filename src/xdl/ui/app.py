@@ -10,7 +10,7 @@ Security posture (spec):
 - binds 127.0.0.1 only (the server runner hard-fails on 0.0.0.0/::),
 - Host-header check -> 403 outside 127.0.0.1/localhost (DNS rebinding),
 - CSP `default-src 'self'` (plus img-src allowlist for poster thumbs;
-  deviation recorded in COORDINATION.md),
+  DECISIONS.md #20),
 - POST /jobs caps input at 500 URLs,
 - no downloads-tree directory listing: `reveal` shells out to the OS manager.
 """
@@ -35,7 +35,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, ConfigDict, Field
 
 from xdl.config import Settings
-from xdl.models import BatchReport, BatchRequest, XdlError
+from xdl.models import BatchReport, BatchRequest, ResolvedTweet, XdlError
 from xdl.report.events import EventKind, ProgressEvent
 
 # --------------------------------------------------------------------------- #
@@ -74,7 +74,6 @@ class _Job:
     quality: str | None
     output: str | None
     concurrency: int | None
-    item_formats: dict[str, str]  # raw url -> format ('video'|'audio')
     started: float = field(default_factory=time.time)
     status: str = "running"  # running | ok | partial | failed
     events: list[dict[str, Any]] = field(default_factory=list)
@@ -190,20 +189,20 @@ class _UrlsMixin(BaseModel):
 
 
 class JobOptions(BaseModel):
-    quality: str | None = None  # 'best' | 'worst' | height | 'mp3'
+    quality: str | None = None  # 'best' | 'worst' | height | 'mp3' (audio-only)
     output: str | None = None
     concurrency: int | None = Field(default=None, ge=1, le=5)
 
 
-class JobItemOverride(BaseModel):
-    url: str
-    quality: str | None = None
-    format: str | None = None  # 'video' | 'audio' (MP3)
+def _batch_quality(raw: str | None) -> tuple[str | None, bool]:
+    """The UI's 'MP3 (audio)' select option maps onto the CLI's --audio-only."""
+    if raw == "mp3":
+        return None, True
+    return raw, False
 
 
 class JobsPost(_UrlsMixin):
     options: JobOptions = JobOptions()
-    items: list[JobItemOverride] | None = None
 
 
 class AnalyzePost(_UrlsMixin):
@@ -266,11 +265,6 @@ def create_app(
             )
         if hub.running_id is not None:
             raise HTTPException(409, detail="a batch is already running; open its page")
-        overrides: dict[str, str] = {}
-        for item in body.items or []:
-            choice = item.format or item.quality
-            if choice:
-                overrides[item.url] = choice
         req_settings = _apply_overrides(settings, body.options)
         job = hub.create(
             _Job(
@@ -279,12 +273,12 @@ def create_app(
                 quality=body.options.quality,
                 output=body.options.output,
                 concurrency=body.options.concurrency,
-                item_formats=overrides,
             )
         )
+        quality, audio_only = _batch_quality(body.options.quality)
         req = BatchRequest(
             inputs=urls, settings=req_settings, origin="web",
-            quality=body.options.quality,
+            quality=quality, audio_only=audio_only,
         )
         asyncio.create_task(_run(hub, run_batch, req, job))  # noqa: RUF006
         return JSONResponse(
@@ -363,14 +357,16 @@ def create_app(
         ] if job.report else []
         if not failed:
             return JSONResponse({"job_id": None, "retried": 0, "detail": "nothing failed"})
+        quality, audio_only = _batch_quality(job.quality)
         req = BatchRequest(
-            inputs=failed, settings=settings, origin="retry", quality=job.quality,
+            inputs=failed, settings=settings, origin="retry",
+            quality=quality, audio_only=audio_only,
         )
         retry_job_view = hub.create(
             _Job(id="", inputs=failed, quality=job.quality, output=job.output,
-                 concurrency=job.concurrency, item_formats={})
+                 concurrency=job.concurrency)
         )
-        await _run(hub, run_batch, req, retry_job_view)
+        asyncio.create_task(_run(hub, run_batch, req, retry_job_view))  # noqa: RUF006
         return JSONResponse(
             {"job_id": retry_job_view.id, "retried": len(failed)}, status_code=202
         )
@@ -406,6 +402,26 @@ def create_app(
 # --------------------------------------------------------------------------- #
 # plumbing
 # --------------------------------------------------------------------------- #
+
+def to_card(raw: str, result: ResolvedTweet | XdlError) -> dict[str, Any]:
+    """One analyze card for the UI: an error line or resolvable post info.
+
+    The single shaping point for /analyze responses (server wiring and tests
+    both go through it, so the card shape lives in exactly one place).
+    """
+    if isinstance(result, XdlError):
+        return {"input": raw, "error": f"{result.code}: {result.detail}"}
+    return {
+        "input": raw,
+        "tweet_id": result.ref.tweet_id,
+        "author": result.author.screen_name,
+        "text": result.text[:120],
+        "poster": next(
+            (m.poster_url or m.url_best for m in result.media), None
+        ),
+        "canonical_url": result.ref.canonical_url,
+    }
+
 
 def _sse(payload: dict[str, Any]) -> bytes:
     return b"data: " + _json.dumps(payload, separators=(",", ":")).encode() + b"\n\n"

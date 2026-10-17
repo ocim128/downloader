@@ -10,7 +10,6 @@ must not be skipped).
 
 from __future__ import annotations
 
-import json
 import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
@@ -38,7 +37,6 @@ CREATE TABLE IF NOT EXISTS downloads (
     variant_url   TEXT,
     file_path     TEXT    NOT NULL,
     size_bytes    INTEGER,
-    sha256        TEXT,
     status        TEXT    NOT NULL,
     error         TEXT,
     source        TEXT,
@@ -150,15 +148,14 @@ class StateStore:
         self._conn.execute(
             """
             INSERT INTO downloads (tweet_id, media_index, batch_id, variant_url,
-                                   file_path, size_bytes, sha256, status, error,
+                                   file_path, size_bytes, status, error,
                                    source, downloaded_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(tweet_id, media_index) DO UPDATE SET
                 batch_id = excluded.batch_id,
                 variant_url = excluded.variant_url,
                 file_path = excluded.file_path,
                 size_bytes = excluded.size_bytes,
-                sha256 = excluded.sha256,
                 status = excluded.status,
                 error = excluded.error,
                 source = excluded.source,
@@ -171,7 +168,6 @@ class StateStore:
                 row.variant_url,
                 str(row.file_path),
                 row.size_bytes,
-                row.sha256,
                 row.status,
                 row.error,
                 row.source,
@@ -180,10 +176,6 @@ class StateStore:
             ),
         )
         self._conn.commit()
-
-    def record_many(self, rows: list[DownloadRow]) -> None:
-        for row in rows:
-            self.record(row)
 
     def mark_incomplete(
         self,
@@ -255,47 +247,6 @@ class StateStore:
             )
         return refs
 
-    def rebuild_from_disk(self, root: Path) -> int:
-        """Rescan `*.meta.json` sidecars -> reconstruct ok/incomplete rows.
-        media_count anchors on the number of sidecars seen per tweet."""
-        per_tweet: dict[str, dict[int, DownloadRow]] = {}
-        authors: dict[str, str | None] = {}
-        count = 0
-        for sidecar in root.glob("**/*.meta.json"):
-            try:
-                payload = json.loads(sidecar.read_text(encoding="utf-8"))
-                (entry,) = payload["media"]
-                tweet_id = str(payload["tweet_id"])
-                index = int(entry.get("index", 1))
-            except (ValueError, KeyError, TypeError):
-                continue
-            media_file = sidecar.parent / str(entry["file"])
-            size = entry.get("size_bytes")
-            size_bytes = size if isinstance(size, int) else (
-                media_file.stat().st_size if media_file.exists() else None
-            )
-            author = payload.get("author")
-            authors[tweet_id] = (
-                author.get("screen_name") if isinstance(author, dict) else None
-            )
-            per_tweet.setdefault(tweet_id, {})[index] = DownloadRow(
-                tweet_id=tweet_id,
-                media_index=index,
-                variant_url=entry.get("source_variant_url"),
-                file_path=media_file,
-                size_bytes=size_bytes,
-                status="ok" if media_file.exists() else "incomplete",
-                source=payload.get("source"),
-                downloaded_at=str(payload.get("downloaded_at") or ""),
-                updated_at=_now(),
-            )
-            count += 1
-        for tweet_id, rows in per_tweet.items():
-            self.upsert_tweet(tweet_id, authors[tweet_id], len(rows))
-            for row in rows.values():
-                self.record(row)
-        return count
-
 
 def _row_to_model(row: sqlite3.Row) -> DownloadRow:
     return DownloadRow(
@@ -305,7 +256,6 @@ def _row_to_model(row: sqlite3.Row) -> DownloadRow:
         variant_url=row["variant_url"],
         file_path=Path(row["file_path"]),
         size_bytes=row["size_bytes"],
-        sha256=row["sha256"],
         status=row["status"],
         error=row["error"],
         source=row["source"],

@@ -1,8 +1,4 @@
-"""Agent B (M6) config precedence tests — lives beside src/xdl/config.py.
-
-tests/unit/** is Agent A's lane per the ownership map; these new files cover
-the config/logging modules B owns (no edits to A's files).
-"""
+"""Config precedence tests — lives beside src/xdl/config.py."""
 
 from __future__ import annotations
 
@@ -39,11 +35,11 @@ def test_env_beats_toml(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     cfg = tmp_path / "config.toml"
-    cfg.write_text('[log]\nlevel = "debug"\n', encoding="utf-8")
-    monkeypatch.setenv("XDL_LOG_LEVEL", "warning")  # env alias (docs/07)
-    monkeypatch.setenv("XDL_ENGINE__RETRIES", "2")  # mechanical nesting
+    cfg.write_text('[storage]\nlayout = "flat"\n', encoding="utf-8")
+    monkeypatch.setenv("XDL_STORAGE__LAYOUT", "by-date")  # mechanical nesting
+    monkeypatch.setenv("XDL_ENGINE__RETRIES", "2")
     s = Settings.load(read_env=True, config_path=cfg)
-    assert s.log.level == "warning"
+    assert s.storage.layout == "by-date"
     assert s.engine.retries == 2
 
 

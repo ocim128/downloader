@@ -1,8 +1,8 @@
 # Technical 06 — Metadata Sidecar
 
 Every downloaded media file gets a sibling `<basename>.meta.json`. Purposes:
-attribution travels with the file, the state DB is rebuildable from disk, and future-you
-can answer "where did I get this / what was the caption?" without X.
+attribution travels with the file, and future-you can answer "where did I get this /
+what was the caption?" without X.
 
 ## Schema
 
@@ -22,14 +22,13 @@ can answer "where did I get this / what was the caption?" without X.
     {
       "index": 1,
       "kind": "video",
-      "file": "2026-09-30_1750123456789012352.mp4",
+      "file": "1750123456789012352.mp4",
       "width": 1280,
       "height": 720,
       "bitrate": 2176000,
       "content_type": "video/mp4",
       "source_variant_url": "https://video.twimg.com/ext_tw_video/.../....mp4",
       "size_bytes": 24117248,
-      "sha256": "ab12...ef",                          // only with --checksum
       "poster_url": "https://pbs.twimg.com/ext_tw_video_thumb/...jpg"
     }
   ],
@@ -46,13 +45,11 @@ Rules:
 
 - One sidecar **per post** (not per media file) when the post has one media item — it
   sits next to the media file with the shared basename. Multi-video posts get **one
-  sidecar per media file** (`..._v2.meta.json`) so a standalone `_v2.mp4` stays
-  self-describing; each contains only its own `media[]` entry. (Revisit if this proves
-  noisy; simplicity of "one sidecar per media file" won over "one per post".)
-- `schema_version` gates future migrations; readers (rebuild) tolerate unknown fields.
+  sidecar per media file** (`..._v2.mp4.meta.json`) so a standalone `_v2.mp4` stays
+  self-describing; each contains only its own `media[]` entry.
+- `schema_version` gates future migrations; readers tolerate unknown fields.
 - Atomic write: temp + rename, same as media files.
-- `--no-meta` skips sidecars entirely (state DB then carries only paths — rebuild
-  degrades to filename info; documented trade-off).
+- `--no-meta` skips sidecars entirely (state DB then carries only paths).
 - Timestamps: ISO 8601, UTC (`Z`), second precision.
 - `text`: keep as-resolved (X puts `t.co` links in text; resolving those to real URLs is
   backlog nicety, not v1).
@@ -67,8 +64,9 @@ A crash between 1 and 3 leaves media-without-state → next run's `--force`-less
 check sees no row, re-resolves, render_path returns the same path, engine sees existing
 complete file with matching size → finalize without re-downloading (idempotent replay).
 
-## Rebuild procedure (`rebuild_from_disk`)
+## Rebuild procedure — not implemented
 
-Glob `**/*.meta.json` under root → parse → upsert rows (file_path from sidecar dir +
-`file`, status=ok if file exists else incomplete). Used after state.db loss/corruption
-or when moving the downloads root (`XDL_OUTPUT` change → path column rewrites).
+There is no `rebuild_from_disk` and no `xdl rebuild` command. Glob-and-upsert from
+sidecars is a plausible future recovery path, but it had no CLI or UI surface and was
+deleted (DECISIONS.md #17). Recover by re-running the URL list: skip logic reuses the
+stored `file_path`, and missing files are re-downloaded.

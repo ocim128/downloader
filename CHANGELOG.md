@@ -1,12 +1,54 @@
 # Changelog
 
 Private, local batch downloader for X (Twitter) video posts. Dates are
-2026-10-17 (two parallel implementation rounds merged into `main`).
+2026-10-17 (three implementation rounds merged into `main`).
 
 ## [Unreleased] — 2026-10-17
 
+### Removed (complexity audit, round 3)
+
+- **Logging subsystem deleted**: `report/logging.py`, `LogCfg`, the `-v/-vv`
+  flags, `tests/report/test_logging.py`, and the README/config-template log
+  sections. The handlers were installed but no module ever emitted a log
+  record, so the flags and the "always-on rotating file log" did nothing
+  (DECISIONS.md "Deliberately not built").
+- **Phantom per-item MP3**: `JobItemOverride`, `JobsPost.items`,
+  `_Job.item_formats`, and the analyze-card MP3 pill are gone. The UI parsed
+  and stored per-item formats, then built a batch-level `BatchRequest` — the
+  pill silently downloaded video. `quality: "mp3"` remains as the batch-level
+  audio-only choice.
+- **`rebuild_from_disk`** and its test — a state-recovery method with no CLI or
+  UI surface.
+- **Dead symbols**: `record_many`, `next_available`, `snowflake_plausible`,
+  `parse_progress_frames`, `target_duration`, `LinkExpiredError`,
+  `expected_size`, the sha256 sidecar/schema plumbing, `DEFAULT_UA` /
+  `GOOGLEBOT_UA`, `downloader._retry_after`, `ConsoleReporter(quiet=...)`.
+- **Dead config knobs**: `resolver.ytdlp_mode`, `resolver.googlebot_retry`,
+  `engine.chunk_kib`, the whole `[log]` section. The template now documents 14
+  honest keys instead of ~20.
+- `.tmp_candidates.json` untracked and gitignored.
+
 ### Changed
 
+- **One analyze implementation**: `ui/__main__` and `tests/ui/real_core.py`
+  both call `xdl.app.analyze` + the single `ui.app.to_card` shaper. The UI
+  analyze path gains the shared throttle and typed error mapping it had
+  bypassed.
+- **`DownloadJob` → `fetch(url, dest, client, ...)`**: the engine read two of
+  the model's eight fields and imported resolver types for the rest.
+- **`Settings.load` runs once per CLI invocation**; all flags go through the
+  one overrides dict instead of mutating `Settings` after load.
+- **`POST /jobs/<id>/retry` returns 202 immediately** (`create_task`), matching
+  `POST /jobs`; the HTTP response no longer blocks on the retry batch.
+- **One host allowlist** in `urls.py` (`_HOSTS` interpolated into every regex);
+  `syndication` reuses `throttle.parse_retry_after` (HTTP-date support
+  included) instead of its numeric-only stub.
+- **Docs**: `COORDINATION.md` and `agent-prompts/` archived under
+  `docs/archive/`; durable decisions distilled into `DECISIONS.md`. Technical
+  docs no longer advertise logging, `--checksum`, `rebuild_from_disk`,
+  `ytdlp_mode`, `googlebot_retry`, or `chunk_kib`.
+- **Tests flattened**: `tests/adapters/`, `tests/config/`, `tests/report/`
+  folded into `tests/unit/`.
 - **Default output filename is now the bare tweet id** (`feat/naming-by-id`):
   `filename_template` default `{date}_{id}` → `{id}` in both `StorageCfg` and
   `render_path`. `xdl <url>` now writes `downloads/x/<author>/<id>.mp4`
@@ -73,7 +115,7 @@ Private, local batch downloader for X (Twitter) video posts. Dates are
   injected mock clients; syndication/HLS/URL/token/engine/state suites;
   integration pipeline incl. resume/429/multi-video partial.
 
-### Known filings (against core lane, see COORDINATION.md)
+### Known filings (round 2, historical — both resolved; see DECISIONS.md)
 
 - Retrying a failed `NO_VIDEO` item reports `skipped` (`state.upsert_tweet`
   records `media_count=0` → `seen_complete()` false-complete).

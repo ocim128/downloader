@@ -102,7 +102,6 @@ def default(
         None, help="Resolver fallback: 'auto' | 'ytdlp' | 'fxtwitter' | 'none'."
     ),
     dry_run: bool = typer.Option(False, help="Resolve + print planned paths, download nothing."),
-    verbose: int = typer.Option(0, "--verbose", "-v", count=True, help="-v info, -vv debug."),
     version: Optional[bool] = typer.Option(  # noqa: UP045
         None,
         "--version",
@@ -133,7 +132,6 @@ def default(
         retries=retries,
         fallback=fallback,
         dry_run=dry_run,
-        verbose=verbose,
     )
 
 
@@ -148,13 +146,12 @@ def _execute(
     force: bool,
     audio_only: bool = False,
     gif: bool = False,
-    concurrency: int | None,
-    resolve_concurrency: int | None,
-    delay: float | None,
-    retries: int | None,
-    fallback: str | None,
-    dry_run: bool,
-    verbose: int,
+    concurrency: int | None = None,
+    resolve_concurrency: int | None = None,
+    delay: float | None = None,
+    retries: int | None = None,
+    fallback: str | None = None,
+    dry_run: bool = False,
     only_failed: bool = False,
 ) -> None:
     import asyncio
@@ -164,16 +161,16 @@ def _execute(
     from xdl.app import run_batch
     from xdl.config import Settings
     from xdl.models import BatchRequest, CancelToken
-    from xdl.report.logging import setup_logging
     from xdl.report.render import ConsoleReporter, print_no_tty_fallback
 
-    overrides = _overrides(output, concurrency, fallback)
-    base = Settings.load(overrides)
+    settings = Settings.load(
+        _overrides(output, concurrency, resolve_concurrency, delay, retries, fallback)
+    )
     origin = "cli"
     if only_failed:
         from xdl.storage.state import StateStore
 
-        state = StateStore(base.db_path)
+        state = StateStore(settings.db_path)
         try:
             refs = state.failed_items()
         finally:
@@ -193,16 +190,7 @@ def _execute(
             )
             raise typer.Exit(code=2)
 
-    settings = Settings.load(overrides)
-    if resolve_concurrency is not None:
-        settings.engine.resolve_concurrency = resolve_concurrency
-    if delay is not None:
-        settings.engine.delay = delay
-    if retries is not None:
-        settings.engine.retries = retries
-
     _warn_stale_ytdlp(settings)
-    setup_logging(settings, verbose=verbose)
 
     request = BatchRequest(
         inputs=inputs,
@@ -275,13 +263,23 @@ def _sigint_handler(token: CancelToken) -> Iterator[None]:
 def _overrides(
     output: Path | None,
     concurrency: int | None,
+    resolve_concurrency: int | None,
+    delay: float | None,
+    retries: int | None,
     fallback: str | None,
 ) -> dict[str, object]:
+    """CLI flags -> flat Settings overrides (one mechanism, highest precedence)."""
     overrides: dict[str, object] = {}
     if output is not None:
         overrides["storage.root"] = output
     if concurrency is not None:
         overrides["engine.concurrency"] = concurrency
+    if resolve_concurrency is not None:
+        overrides["engine.resolve_concurrency"] = resolve_concurrency
+    if delay is not None:
+        overrides["engine.delay"] = delay
+    if retries is not None:
+        overrides["engine.retries"] = retries
     if fallback is not None:
         overrides["resolver.fallback"] = fallback
     return overrides
@@ -319,7 +317,6 @@ def retry_failed(
     concurrency: Optional[int] = typer.Option(  # noqa: UP045
         None, "--concurrency", "-c", min=1, help="Parallel file downloads [default: 3]."
     ),
-    verbose: int = typer.Option(0, "--verbose", "-v", count=True, help="-v info, -vv debug."),
 ) -> None:
     """Re-run items whose state status is failed/incomplete."""
     _execute(
@@ -331,12 +328,6 @@ def retry_failed(
         no_meta=no_meta,
         force=force,
         concurrency=concurrency,
-        resolve_concurrency=None,
-        delay=None,
-        retries=None,
-        fallback=None,
-        dry_run=False,
-        verbose=verbose,
         only_failed=True,
     )
 

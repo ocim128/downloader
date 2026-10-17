@@ -14,7 +14,7 @@ defined effect on the run.
 | `TWEET_ID_INVALID` | normalize | no | "implausible post id: <id>" | item failed |
 | `NOT_EMBEDDABLE` | resolve | via next adapter | "not servable by this adapter (sensitive/age-gated/fresh/unindexed)" | falls through the chain; terminal only if no adapter succeeds |
 | `NOT_FOUND` | resolve | no | "post deleted or never existed (failed on every adapter)" | item failed |
-| `LINK_EXPIRED` | download | yes (once) | "signed CDN URL expired mid-transfer; re-resolving" | engine raises `LinkExpiredError`; the **orchestrator** re-resolves and re-dispatches once (layering rule 6), then fail |
+| `LINK_EXPIRED` | download | yes (once) | "signed CDN URL expired mid-transfer; re-resolving" | engine raises `XdlError(LINK_EXPIRED)`; the **orchestrator** re-resolves and re-dispatches once (layering rule 6), then fail |
 | `AUTH_REQUIRED` | resolve/media | no | "needs an account session (see `--cookies-file`)" | item failed |
 | `NO_VIDEO` | resolve/select | no | "post has no video (photos only)" | item failed (expected in mixed batches) |
 | `RATE_LIMITED` | any network | **yes, timed** | "rate limited; backing off <N>s" | global pause, retry same item |

@@ -2,9 +2,9 @@
 
 Frontend wiring only: loads Settings, imports the real orchestrator from
 `xdl.app` (frontend -> app is layering-legal), injects `run_batch`/`analyze`/
-history/reveal callables, then uvicorn. `xdl serve` (cli.py, Agent A) will
-alias this entry; it stays runnable standalone so the UI is testable against
-both the stub and the real pipeline.
+history/reveal callables, then uvicorn. `xdl serve` (cli.py) aliases this
+entry; it stays runnable standalone so the UI is testable against both the
+stub and the real pipeline.
 
 SECURITY: hard-fails unless the bind is loopback (private tool by design).
 """
@@ -18,7 +18,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-import httpx
 import uvicorn
 
 from xdl.config import Settings
@@ -57,11 +56,8 @@ def list_state_batches(db_path: Path, limit: int = 50) -> list[dict[str, Any]]:
 def build(port: int) -> Any:
     """Create the app with REAL core wiring (no stubs)."""
     import xdl.app as core
-    from xdl.models import TweetRef
-    from xdl.resolve.base import build_chain
     from xdl.storage.state import StateStore
-    from xdl.ui.app import create_app
-    from xdl.urls import normalize
+    from xdl.ui.app import create_app, to_card
 
     settings = Settings.load()
 
@@ -69,48 +65,12 @@ def build(port: int) -> Any:
         return await core.run_batch(req, on_event=on_event)
 
     async def analyze(raw_urls: list[str]) -> list[dict[str, Any]]:
-        """Flow B cards: resolve-only, no downloads (docs technical/10).
+        """Flow B cards: the core resolve-only helper, shaped once (to_card).
 
-        # TODO(merge): move behind an xdl.app-exposed helper when Agent A adds
-        # one; composing normalize+chain here is interim frontend wiring,
-        # flagged in COORDINATION.md.
-        """
-        cards: list[dict[str, Any]] = []
-        async with httpx.AsyncClient(
-            http2=False, timeout=httpx.Timeout(connect=10, read=60, write=30, pool=15)
-        ) as client:
-            chain = build_chain(settings, client)
-            for line in raw_urls:
-                line = line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                try:
-                    ref: TweetRef = await normalize(client, line)
-                    tweet = await chain.resolve(ref)
-                except Exception as err:
-                    cards.append({"input": line, "error": f"{type(err).__name__}: {err}"})
-                    continue
-                videos = [m for m in tweet.media if m.kind in ("video", "gif")]
-                cards.append(
-                    {
-                        "input": line,
-                        "tweet_id": tweet.ref.tweet_id,
-                        "author": tweet.author.screen_name,
-                        "text": tweet.text[:120],
-                        "poster": next(
-                            (m.poster_url or m.url_best for m in tweet.media), None
-                        ),
-                        "canonical_url": tweet.ref.canonical_url,
-                        "media_kinds": sorted({m.kind for m in tweet.media}),
-                        "available_bitrates": sorted(
-                            {v.bitrate for m in videos for v in m.variants if v.bitrate},
-                            reverse=True,
-                        ),
-                        # policy labels: honest caps fed into BatchRequest.quality
-                        "formats": ["Best MP4", "MP3"],
-                    }
-                )
-        return cards
+        Uses the shared throttle + client + error mapping — the UI gets the
+        same pacing and typed failures the CLI path has."""
+        results = await core.analyze(raw_urls, settings)
+        return [to_card(raw, r) for raw, r in zip(raw_urls, results, strict=True)]
 
     def _list_batches_sync(limit: int) -> list[dict[str, Any]]:
         return list_state_batches(settings.db_path, limit)

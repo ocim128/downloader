@@ -95,22 +95,17 @@ function renderCards(items) {
     snippet.textContent = item.text || "";
     const pills = document.createElement("div");
     pills.className = "pills";
-    for (const label of item.formats || []) {
-      const pill = document.createElement("button");
-      pill.className = "pill";
-      pill.textContent = label;
-      pill.addEventListener("click", async () => {
-        try {
-          const data = await postJSON("/jobs", {
-            urls: [item.input],
-            items: [{ url: item.input, format: label === "MP3" ? "audio" : "video" }],
-          });
-          msg(`batch #${data.job_id} started`, "info");
-          watchJob(String(data.job_id));
-        } catch (err) { msg(String(err.message || err), "err"); }
-      });
-      pills.appendChild(pill);
-    }
+    const pill = document.createElement("button");
+    pill.className = "pill";
+    pill.textContent = "download";
+    pill.addEventListener("click", async () => {
+      try {
+        const data = await postJSON("/jobs", { urls: [item.input] });
+        msg(`batch #${data.job_id} started`, "info");
+        watchJob(String(data.job_id));
+      } catch (err) { msg(String(err.message || err), "err"); }
+    });
+    pills.appendChild(pill);
     meta.append(handle, snippet, pills);
     card.append(img, meta);
     host.appendChild(card);

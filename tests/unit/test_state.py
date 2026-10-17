@@ -1,9 +1,8 @@
-"""State store: three-table schema, seen_complete semantics, retry-failed,
-rebuild_from_disk (docs/technical/05)."""
+"""State store: three-table schema, seen_complete semantics, retry-failed
+(docs/technical/05)."""
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -108,43 +107,6 @@ def test_get_tweet(state: StateStore) -> None:
     assert row is not None
     assert row.author == "someuser" and row.media_count == 4
     assert state.get_tweet("nope") is None
-
-
-def test_rebuild_from_disk_round_trip(state: StateStore, tmp_path: Path) -> None:
-    from xdl.models import Author, Chosen, MediaAsset, ResolvedTweet, TweetRef, Variant
-    from xdl.storage.naming import render_path
-    from xdl.storage.sidecar import write_sidecar
-
-    tweet = ResolvedTweet(
-        ref=TweetRef(tweet_id="1750", screen_name="someuser",
-                     canonical_url="https://x.com/someuser/status/1750"),
-        text="hello",
-        created_at=datetime(2026, 9, 30, 21, 14, tzinfo=UTC),
-        author=Author(screen_name="someuser", display_name="Some User"),
-        media=[MediaAsset(kind="video", index=1, poster_url="https://p/1.jpg")],
-        source="syndication",
-    )
-    chosen = Chosen(
-        asset=tweet.media[0],
-        variant=Variant(url="https://video.twimg.com/1.mp4", bitrate=1000,
-                        width=1280, height=720),
-    )
-    media_file = render_path(tmp_path, tweet, 1)
-    media_file.parent.mkdir(parents=True, exist_ok=True)
-    media_file.write_bytes(b"videobytes")
-    import asyncio
-
-    from xdl.storage.sidecar import build_payload
-
-    payload = build_payload(tweet, chosen, media_file, size_bytes=9)
-    asyncio.run(write_sidecar(media_file, payload))
-
-    count = state.rebuild_from_disk(tmp_path)
-    assert count == 1
-    assert state.seen_complete("1750")
-    (row,) = state.lookup("1750")
-    assert row.file_path == media_file
-    assert row.status == "ok" and row.size_bytes == 9
 
 
 def test_wal_mode(state: StateStore, tmp_path: Path) -> None:

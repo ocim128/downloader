@@ -105,7 +105,6 @@ CREATE TABLE IF NOT EXISTS downloads (
     variant_url  TEXT,               -- exact URL fetched (provenance/debug)
     file_path    TEXT    NOT NULL,   -- absolute, at record time
     size_bytes   INTEGER,
-    sha256       TEXT,               -- optional (--checksum)
     status       TEXT    NOT NULL,   -- ok | incomplete | failed
     error        TEXT,               -- error code for failed rows
     source       TEXT,               -- syndication | fxtwitter | graphql | ytdlp
@@ -123,18 +122,18 @@ API:
 |---|---|
 | `seen_complete(tweet_id) -> bool` | `COUNT(media_index WHERE status=ok) == tweets.media_count` — an "any-ok-row" check would wrongly skip multi-video posts whose later videos failed (audit round 2 bug fix) |
 | `lookup(tweet_id) -> rows` | skip check + path reuse |
-| `record(row)` / `record_many(rows)` | upsert after finalize |
+| `record(row)` | upsert after finalize |
 | `mark_incomplete(tweet_id, index, path)` | before transfer starts |
 | `failed_items(since=None) -> refs` | powers `xdl retry-failed` |
 | `new_batch(origin, total) -> id` / `batches(...)` | batch lifecycle for CLI runs and the web UI's `/jobs` endpoints |
 | `upsert_tweet(id, author, media_count)` | recorded on first resolve; anchors `seen_complete` |
-| `rebuild_from_disk(root)` | rescan sidecars → reconstruct rows (corruption recovery) |
 
 **Filesystem is truth**: `seen_complete` is only consulted together with
 `os.path.exists(stored_path)`; missing file → not skipped, re-download (row reused).
 
-Sidecar files (`*.meta.json`) mirror enough state to make `rebuild_from_disk` lossless —
-see [06-metadata-sidecar.md](06-metadata-sidecar.md).
+There is no `rebuild_from_disk` recovery command. The sidecar rescan had no CLI or UI
+surface and was deleted; git history preserves it if state recovery ever becomes a real
+need (DECISIONS.md #17).
 
 ## Skip lifecycle
 

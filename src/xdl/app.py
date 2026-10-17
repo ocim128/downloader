@@ -2,7 +2,7 @@
 
 The only component frontends talk to (docs/02): `run_batch(BatchRequest) ->
 BatchReport` plus the resolve-only `analyze(urls, settings)` helper. Also owns
-cross-stage recovery: the engine raises `LinkExpiredError`; app.py — never the
+cross-stage recovery: the engine raises LINK_EXPIRED; app.py — never the
 engine — re-resolves and re-dispatches once (layering rule 6).
 
 Resilience (docs/technical/08): per-item retries with exponential backoff +
@@ -13,10 +13,8 @@ item/chunk granularity).
 
 Concurrency model: one item-task per input; items bounded by `resolve_sem`,
 transfers bounded by `download_sem`. Resolves of later items overlap
-transfers of earlier ones — the streaming property docs/02's queue+workers
-formulation provides. (Deviation from the letter — semaphore-bounded item
-tasks instead of a literal asyncio.Queue — noted in COORDINATION.md;
-semantics identical for bounded fan-out.)
+transfers of earlier ones — semantics identical to a queue+worker topology
+for bounded fan-out (deviation from the docs' letter noted in DECISIONS.md).
 """
 
 from __future__ import annotations
@@ -44,7 +42,6 @@ from xdl.models import (
     BatchRequest,
     CancelToken,
     Chosen,
-    DownloadJob,
     DownloadRow,
     ErrorCode,
     ItemResult,
@@ -613,21 +610,9 @@ async def _acquire(
         if src.is_file():
             return Chosen(asset=chosen.asset, variant=variant)  # staged earlier
 
-        job = DownloadJob(
-            ref=tweet.ref,
-            media_index=index,
-            kind=chosen.asset.kind if chosen.asset.kind in ("video", "gif") else "video",
-            url=variant.url,
-            dest=src,
-            content_type=variant.content_type,
-            bitrate=variant.bitrate,
-            width=variant.width,
-            height=variant.height,
-        )
-
-        async def op(job: DownloadJob = job) -> Path:
-            return await fetch(job, ctx.http, cb=on_progress, throttle=ctx.throttle,
-                               cancel=ctx.cancel)
+        async def op(url: str = variant.url, dest: Path = src) -> Path:
+            return await fetch(url, dest, ctx.http, cb=on_progress,
+                               throttle=ctx.throttle, cancel=ctx.cancel)
 
         try:
             await _with_retries(

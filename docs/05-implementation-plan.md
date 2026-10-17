@@ -3,9 +3,9 @@
 Milestones are vertical slices: each ends with something runnable and manually testable.
 Effort estimates assume solo evening/weekend sessions.
 
-> **Status key (round 2, 2026-10-17):** `[x]` done and merged to main · `[~]` partial ·
-> `[ ]` not started. Shipped-slice summaries live in `CHANGELOG.md`; cross-lane
-> deviations live in `COORDINATION.md` (they supersede this doc where they disagree).
+> **Status key (round 3, 2026-10-17):** `[x]` done and merged to main · `[~]` partial ·
+> `[ ]` not started. Shipped-slice summaries live in `CHANGELOG.md`; durable
+> deviations live in `DECISIONS.md` (they supersede this doc where they disagree).
 
 ## M0 — Scaffold (0.5 day) — DONE
 
@@ -24,8 +24,8 @@ Effort estimates assume solo evening/weekend sessions.
 
 **Goal**: `xdl <url>` writes one best-quality MP4 for a normal public video post.
 
-The **spike** came first (Agent B's M1 spike, recorded 2026-10-17 in
-COORDINATION.md; fixtures in `tests/fixtures/`, goldens in
+The **spike** came first (recorded 2026-10-17 in
+`docs/archive/COORDINATION.md`; fixtures in `tests/fixtures/`, goldens in
 `tests/fixtures/golden_tokens.json`):
 
 - [x] Live-verify `cdn.syndication.twimg.com/tweet-result` — endpoint alive; **token is
@@ -126,21 +126,20 @@ expired-URL 403 recovers via re-resolve without losing the item.
 ([technical/09-testing.md](technical/09-testing.md)) downloads correctly; ffmpeg-absent
 run degrades with clear messages, exit 1.
 
-## M6 — Config & polish (0.5–1 day) — config + logging shipped (Agent B, round 2)
+## M6 — Config & polish (0.5–1 day) — DONE
 
 - [x] `config.toml` + env + precedence; `platformdirs` locations
       ([technical/07-cli-and-config.md](technical/07-cli-and-config.md)).
 - [x] Filename template options; by-author/flat layouts (shipped at M2).
-- [x] Logging to rotating file (`report/logging.py`); console level from `-v/-vv`
-      (file always-on INFO + cookie redaction). CLI `main()` wiring: call
-      `setup_logging(settings, verbose=...)` — **pending on feat/core-2** (noted in
-      COORDINATION.md).
+- [x] ~~Logging to rotating file; console level from `-v/-vv`~~ — the subsystem
+      installed handlers nothing wrote to; deleted in round 3 along with `LogCfg`
+      and the flags (DECISIONS.md "Deliberately not built").
 - [x] README refresh (every round).
-- [~] CHANGELOG — round-2 initial entry done.
-- [ ] `--dry-run` exists end-to-end; needs a live matrix tick once CLI wiring lands.
+- [x] CHANGELOG entries per round.
+- [x] `--dry-run` end-to-end (integration-tested; live matrix tick done round 2).
 
-**Accept**: flags configurable via file+env (tested in `tests/config/`); `--dry-run` is
-BatchRequest-native (tests/integration); live matrix tick pending M4/M5 merge.
+**Accept**: flags configurable via file+env (tested in `tests/unit/test_config.py`);
+`--dry-run` is BatchRequest-native (tests/integration).
 
 ## M7 — Optional: authenticated GraphQL resolver (2 days, separate decision)
 

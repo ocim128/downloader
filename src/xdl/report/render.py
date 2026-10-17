@@ -34,35 +34,28 @@ _STATUS_STYLE = {
 
 
 class ConsoleReporter:
-    def __init__(self, console: Console | None = None, *, quiet: bool = False) -> None:
+    def __init__(self, console: Console | None = None) -> None:
         self.console = console or Console()
-        self._quiet = quiet
-        self._progress: Progress | None = None
         self._bars: dict[tuple[str, int], TaskID] = {}
-        if not quiet:
-            self._progress = Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                BarColumn(),
-                DownloadColumn(),
-                TransferSpeedColumn(),
-                TimeRemainingColumn(),
-                console=self.console,
-                disable=not self.console.is_terminal,
-            )
+        self._progress = Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            DownloadColumn(),
+            TransferSpeedColumn(),
+            TimeRemainingColumn(),
+            console=self.console,
+            disable=not self.console.is_terminal,
+        )
 
     def __enter__(self) -> ConsoleReporter:
-        if self._progress is not None:
-            self._progress.start()
+        self._progress.start()
         return self
 
     def __exit__(self, *exc: object) -> None:
-        if self._progress is not None:
-            self._progress.stop()
+        self._progress.stop()
 
     def handle(self, event: ProgressEvent) -> None:
-        if self._quiet or self._progress is None:
-            return
         key = (event.tweet_id or "", event.media_index or 0)
         if event.kind is EventKind.download_start:
             label = f"[{(event.tweet_id and event.tweet_id[-6:]) or '?'}"

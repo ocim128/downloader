@@ -25,7 +25,7 @@ from pathlib import Path
 
 import httpx
 
-from xdl.config import EngineCfg, LogCfg, Settings, StorageCfg
+from xdl.config import EngineCfg, Settings, StorageCfg
 
 _VIDEO_ID = "2040511285998313827"
 _FIXTURE = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "syndication"
@@ -79,7 +79,6 @@ def build_app(port: int):  # type: ignore[no-untyped-def]
             db_path=Path(tmp.name) / "state.db",
         ),
         engine=EngineCfg(delay=0.2),  # pacing: the SSE stream must see ticks
-        log=LogCfg(file=False),
     )
 
     import xdl.app as core
@@ -95,7 +94,9 @@ def build_app(port: int):  # type: ignore[no-untyped-def]
 
 def drive(base: str) -> int:
     failures = 0
-    with httpx.Client(base_url=base, timeout=30) as http:
+    # trust_env=False: a corporate/system HTTP(S)_PROXY turns loopback requests
+    # into absolute-form ones, which the app's router answers 404.
+    with httpx.Client(base_url=base, timeout=30, trust_env=False) as http:
         post = http.post("/jobs", json={"urls": f"https://x.com/reactiive_/status/{_VIDEO_ID}"})
         assert post.status_code == 202, post.text
         job_id: str = post.json()["job_id"]
@@ -159,7 +160,7 @@ def main() -> int:
         print("FAIL  server did not start")
         return 2
     base = f"http://127.0.0.1:{args.port}"
-    with httpx.Client(base_url=base, timeout=10) as http:
+    with httpx.Client(base_url=base, timeout=10, trust_env=False) as http:
         page = http.get("/")
         print(f"PASS  GET / -> {page.status_code}, CSP: "
               f"{page.headers.get('content-security-policy', '')[:40]}...")

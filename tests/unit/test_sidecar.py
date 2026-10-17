@@ -51,7 +51,6 @@ def test_payload_schema(tmp_path: Path) -> None:
     assert entry["file"] == media_file.name
     assert entry["bitrate"] == 2176000
     assert entry["size_bytes"] == 24117248
-    assert "sha256" not in entry  # only with --checksum
     assert entry["poster_url"] == "https://pbs.twimg.com/thumb.jpg"
     assert payload["downloaded_at"].endswith("Z")
 

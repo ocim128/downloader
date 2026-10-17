@@ -4,15 +4,16 @@ A **private, local-only, batch downloader for X (Twitter) video posts**, inspire
 [x-downloader.com](https://x-downloader.com/en/) but built for personal use: no web service,
 no third-party servers, no accounts, files saved straight to disk with metadata.
 
-This folder contains the complete planning documentation for building the app from scratch.
-No code exists yet — these docs are the blueprint.
+This folder contains the planning documentation and technical deep-dives for the
+app. The code is shipped (`src/xdl`); where these docs and the code disagree,
+[`DECISIONS.md`](../DECISIONS.md) and the code win.
 
 ## What the app is (one paragraph)
 
 A command-line tool (`xdl`) where you paste one or many X post URLs (a list file, stdin, or
 arguments). For each post it resolves the video metadata via X's public syndication API,
 picks the highest-quality MP4 variant, downloads it concurrently with progress bars, saves
-it under a clean, deterministic filename (e.g. `2026-10-01_1750123456789012352.mp4`) next to
+it under a clean, deterministic filename (e.g. `1750123456789012352.mp4`) next to
 a JSON metadata sidecar, records the download in a local SQLite database so re-runs skip
 duplicates, and prints a final summary table. A local web UI (`xdl serve`, localhost
 only) that mimics the x-downloader.com paste-and-grab UX is a **core deliverable
@@ -22,6 +23,7 @@ only) that mimics the x-downloader.com paste-and-grab UX is a **core deliverable
 
 | Doc | Contents |
 |---|---|
+| [../DECISIONS.md](../DECISIONS.md) | **Start here for shipped behavior**: durable decisions, deliberate deviations, what is not built |
 | [01-goals-and-scope.md](01-goals-and-scope.md) | Goals, non-goals, user stories, feature mapping vs. x-downloader.com, MVP definition |
 | [02-architecture.md](02-architecture.md) | Whole system architecture: pipeline, components, concurrency model, storage, data flow |
 | [03-tech-stack.md](03-tech-stack.md) | Language & framework choice with rationale, dependency list, packaging |
@@ -104,4 +106,6 @@ only) that mimics the x-downloader.com paste-and-grab UX is a **core deliverable
   currently accepts any non-empty token; **sensitive posts ARE served** full bodies
   (softening audit round 2's 20–40% failure claim); HLS-only variants never occur
   live; `urllib.request` fingerprints get 404 (httpx + browser UA required). All
-  deviations and integration points are recorded in `COORDINATION.md`.
+  deviations and integration points are recorded in
+  [`DECISIONS.md`](../DECISIONS.md) (full lane history in
+  [`archive/COORDINATION.md`](archive/COORDINATION.md)).

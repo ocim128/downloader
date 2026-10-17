@@ -23,10 +23,10 @@
 | `naming.sanitize_segment` | Windows table: reserved names, trailing dots, CJK/emoji authors, 255-cap, surrogate pairs |
 | `naming.render_path` | determinism (same input → same path), state-anchor override (renamed author reuses stored path) |
 | `throttle` | backoff math bounds, jitter ranges, `Retry-After` parsing (int + HTTP-date), global pause visibility |
-| `state` | skip semantics with/without file present, retry-failed query, rebuild_from_disk round-trip |
+| `state` | skip semantics with/without file present, retry-failed query |
 | `hls.parse_master` | fixture playlists: multi-bitrate pick, resolution caps, AES-128 vs DRM detection |
 
-### Adapter tests (`tests/adapters/`)
+### Adapter tests (`tests/unit/test_syndication.py`, `test_fxtwitter.py`)
 
 `MockTransport` serves `tests/fixtures/syndication/*.json`; assert `ResolvedTweet`
 field-for-field. Fixture set (each a real recorded response, redacted):

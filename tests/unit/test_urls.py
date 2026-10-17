@@ -103,8 +103,8 @@ def test_id_too_long() -> None:
     assert parse_err(overlong) is ErrorCode.TWEET_ID_INVALID
 
 
-def test_short_id_ok_with_warning_only() -> None:
-    # snowflake plausibility is a warning, never a rejection
+def test_short_id_ok() -> None:
+    # 2-digit ids parse (id "20" is the first tweet); only 1 digit is invalid
     ref = parse_ok("https://x.com/user/status/12")
     assert ref.tweet_id == "12"
 
@@ -184,7 +184,7 @@ async def test_tco_to_disallowed_host() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Media URL allowlist + snowflake
+# Media URL allowlist
 # --------------------------------------------------------------------------- #
 
 
@@ -195,12 +195,3 @@ def test_media_url_allowlist() -> None:
     assert not urls.is_allowed_media_url("https://evil.twimg.com.evil.net/x.mp4")
     assert not urls.is_allowed_media_url("https://evil.net/video.mp4")
     assert not urls.is_allowed_media_url("https://twimg.com.evil.net/x.mp4")
-
-
-def test_snowflake_plausibility() -> None:
-    # ID -> 2024-07-28ish
-    assert urls.snowflake_plausible("1750123456789012352")
-    # id 20 -> epoch (2006-11-01) — plausible
-    assert urls.snowflake_plausible("20")
-    # far-future id (year ~2262+ snowflake bits) — implausible, warning only
-    assert not urls.snowflake_plausible("9999999999999999999")

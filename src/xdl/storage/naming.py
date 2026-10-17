@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from itertools import count
 from pathlib import Path
 
 from xdl.models import ResolvedTweet
@@ -90,14 +89,3 @@ def render_path(
         raise ValueError(f"unknown layout {layout!r}")
 
     return root.joinpath(*segments) / f"{stem}{ext}"
-
-
-def next_available(path: Path) -> Path:
-    """Collision suffix ' (2)', ' (3)' before the extension — never overwrite."""
-    if not path.exists():
-        return path
-    for n in count(2):
-        candidate = path.with_name(f"{path.stem} ({n}){path.suffix}")
-        if not candidate.exists():
-            return candidate
-    raise AssertionError("unreachable")  # count() is infinite

@@ -43,7 +43,7 @@ def test_config_command_prints_resolved_settings(
     monkeypatch.setenv("XDL_OUTPUT", str(tmp_path / "dl"))
     result = runner.invoke(app, ["config"])
     assert result.exit_code == 0
-    for section in ("[storage]", "[resolver]", "[engine]", "[hls]", "[log]"):
+    for section in ("[storage]", "[resolver]", "[engine]", "[hls]"):
         assert section in result.output
     root_lines = [ln for ln in result.output.splitlines() if ln.startswith("root")]
     assert root_lines and "dl" in root_lines[0]  # env override won

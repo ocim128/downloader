@@ -6,10 +6,8 @@ patched extractor is the second hop. Imported as a LIBRARY — no subprocess,
 no CLI-output parsing. Bundled as a standard runtime dependency so
 `fallback = "auto"` never quietly has no second hop.
 
-`resolve-only` mode today: the info dict feeds ResolvedTweet; OUR engine
-still downloads, so naming, sidecars, state, and dedup behave identically
-for every adapter. (`ytdlp_mode = "full"` — let yt-dlp download too — is
-deferred; see COORDINATION.md.)
+Resolve-only: the info dict feeds ResolvedTweet; OUR engine still downloads,
+so naming, sidecars, state, and dedup behave identically for every adapter.
 """
 
 from __future__ import annotations
@@ -63,13 +61,7 @@ def stale_ytdlp_warning(
 class YtdlpResolver:
     name = "ytdlp"
 
-    def __init__(
-        self,
-        *,
-        mode: str = "resolve-only",
-        ydl_factory: YdlFactory | None = None,
-    ) -> None:
-        self._mode = mode
+    def __init__(self, *, ydl_factory: YdlFactory | None = None) -> None:
         self._factory = ydl_factory
 
     async def resolve(self, ref: TweetRef) -> ResolvedTweet:

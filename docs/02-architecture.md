@@ -67,7 +67,7 @@ sequenceDiagram
         S->>D: chosen variant URL + expected size/type
         D->>D: resume .part via Range, stream to disk
         D->>F: bytes complete
-        F->>F: size/sha256 verify, atomic rename, HLS remux if needed
+        F->>F: size verify, atomic rename, HLS remux if needed
         F->>O: write sidecar + upsert state.db → Result(OK)
     end
 ```
@@ -78,8 +78,8 @@ sequenceDiagram
 |---|---|---|---|
 | 1. Normalize | raw string | `TweetRef(tweet_id, screen_name?, canonical_url)` | `URL_UNRECOGNIZED`, `TWEET_ID_INVALID` |
 | 2. Resolve | `TweetRef` | `ResolvedTweet` (metadata + `list[MediaAsset]`) | `NOT_EMBEDDABLE` (falls through the adapter chain), `NOT_FOUND` (all adapters failed), `NO_VIDEO`, `RATE_LIMITED`, `UPSTREAM_ERROR` |
-| 3. Select | `MediaAsset` list | `DownloadJob(url, expected_size, content_type, dest_path)` | `NO_VIDEO` (photo-only), `QUALITY_UNAVAILABLE` |
-| 4. Download | `DownloadJob` | completed `.part` file | network/timeout/429/disk errors |
+| 3. Select | `MediaAsset` list | `list[Chosen(asset, variant)]` | `NO_VIDEO` (photo-only); a `--quality N` cap with no variant under it → closest fit, not an error |
+| 4. Download | `Chosen` | completed `.part` file | network/timeout/429/disk errors |
 | 5. Finalize | `.part` + `ResolvedTweet` | final file + sidecar + state row | `INTEGRITY_MISMATCH`, `WRITE_ERROR`, `HLS_REQUIRES_FFMPEG` |
 
 Full error semantics: [technical/08-errors-and-rate-limits.md](technical/08-errors-and-rate-limits.md).
@@ -90,7 +90,7 @@ Full error semantics: [technical/08-errors-and-rate-limits.md](technical/08-erro
   (ffmpeg subprocess wrapper — actually a subprocess, not a thread).
 - **Two semaphores**: resolve_sem (default 4) bounds metadata lookups; download_sem
   (default 3) bounds video transfers (what X rate-limits).
-- *Shipped shape (deviation 3, COORDINATION.md)*: semaphore-bounded per-item `asyncio`
+- *Shipped shape (DECISIONS.md #8)*: semaphore-bounded per-item `asyncio`
   tasks rather than a literal `asyncio.Queue` + workers — the same bounded fan-out
   (resolves of later items overlap transfers of earlier ones), with fewer moving parts.
 - **Shared `ThrottleState`**: any 429 flips a global `pause_until` timestamp every worker
@@ -109,22 +109,23 @@ Owns the batch lifecycle: reads config, builds queues, drives stages, collects
 per-item `Result` records, decides skip-vs-proceed, produces the final summary and exit
 code. The **only** component the frontends talk to (one entrypoint:
 `run_batch(request: BatchRequest) -> BatchReport`). It also owns cross-stage recovery:
-when the engine raises `LinkExpiredError` (signed CDN URL expired mid-transfer), the
-orchestrator — never the engine — re-resolves the post and re-dispatches a fresh
-`DownloadJob` (layering rule 6).
+when the engine raises `LINK_EXPIRED` (signed CDN URL expired mid-transfer), the
+orchestrator — never the engine — re-resolves the post and re-dispatches the
+transfer, resuming the `.part` when the object path is unchanged (layering rule 6).
 
 ### Resolver layer (`resolve/`)
 - `Resolver` protocol: `async resolve(ref: TweetRef) -> ResolvedTweet`.
-- Adapters: `SyndicationResolver` (default), `FxtwitterResolver` (opt-in fallback),
-  `GraphQLResolver` (opt-in, cookies, phase 7).
+- Adapters: `SyndicationResolver` (default), `YtdlpResolver` (bundled fallback,
+  resolve-only), `FxtwitterResolver` (opt-in fallback), `GraphQLResolver` (opt-in,
+  cookies, phase 7 — not started).
 - A `FallbackChain` tries adapters in configured order and maps adapter failures to our
   error taxonomy. Adding a **TikTok resolver later** (this repo's theme) means adding one
   file implementing the protocol — the pipeline never learns source-specific details.
 - Details: [technical/02-media-resolution.md](technical/02-media-resolution.md).
 
 ### Download engine (`engine/`)
-Streaming HTTP GET with Range-resume, `.part` temp files, size verification, optional
-sha256, retry/backoff, per-file progress callbacks. Details:
+Streaming HTTP GET with Range-resume, `.part` temp files, size verification,
+retry/backoff, per-file progress callbacks. Details:
 [technical/03-download-engine.md](technical/03-download-engine.md).
 
 ### Media post-processing (`media/`)
@@ -148,14 +149,13 @@ consume later. The orchestrator emits neutral `ProgressEvent`s; frontends render
 <downloads_root>/            # default ./downloads relative to cwd; configurable
   x/
     <screen_name>/
-      2026-10-01_1750123456789012352.mp4
-      2026-10-01_1750123456789012352.meta.json
-      2026-10-01_1750123456789012352_v2.mp4     # multi-video posts
-%LOCALAPPDATA%/xdl/           # Windows (platformdirs, appauthor=False — deviation 7,
-                              #   COORDINATION.md; ~/.config/xdl on Linux)
+      1750123456789012352.mp4
+      1750123456789012352.mp4.meta.json
+      1750123456789012352_v2.mp4                # multi-video posts
+%LOCALAPPDATA%/xdl/           # Windows (platformdirs, appauthor=False — DECISIONS.md #16;
+                              #   ~/.config/xdl on Linux)
   config.toml
   state.db                   # SQLite
-  logs/xdl.log               # rotating 5 MB x 3, always-on INFO (-v only widens console)
 ```
 
 ## Configuration flow
@@ -172,4 +172,4 @@ component reads config implicitly. Full spec:
 - Redirects from `t.co` expansion are followed exactly one hop and re-validated by the
   parser (no arbitrary redirect chasing from metadata).
 - Cookies (phase 7, opt-in) live only in a user-specified file with a startup warning if
-  permissions are looser than owner-only; they are never logged.
+  permissions are looser than owner-only; they are never written to sidecars or state.

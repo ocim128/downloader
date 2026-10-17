@@ -20,12 +20,12 @@ from typing import Any
 
 import httpx
 
+from xdl.app import analyze as core_analyze
 from xdl.app import run_batch as core_run_batch
 from xdl.models import BatchReport
 from xdl.report.events import ProgressEvent
-from xdl.resolve.base import build_chain
 from xdl.storage.state import StateStore
-from xdl.urls import normalize
+from xdl.ui.app import to_card
 
 FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "syndication"
 
@@ -71,33 +71,10 @@ class RealCoreRunner:
         return await core_run_batch(req, client=self.client, on_event=on_event)
 
     async def analyze(self, raw_urls: list[str]) -> list[dict[str, Any]]:
-        cards: list[dict[str, Any]] = []
-        chain = build_chain(self.settings, self.client)
-        for line in raw_urls:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            try:
-                ref = await normalize(self.client, line)
-                tweet = await chain.resolve(ref)
-            except Exception as err:
-                cards.append({"input": line, "error": f"{type(err).__name__}: {err}"})
-                continue
-            cards.append(
-                {
-                    "input": line,
-                    "tweet_id": tweet.ref.tweet_id,
-                    "author": tweet.author.screen_name,
-                    "text": tweet.text[:120],
-                    "poster": next(
-                        (m.poster_url or m.url_best for m in tweet.media), None
-                    ),
-                    "canonical_url": tweet.ref.canonical_url,
-                    "media_kinds": sorted({m.kind for m in tweet.media}),
-                    "formats": ["Best MP4", "MP3"],
-                }
-            )
-        return cards
+        """The real Flow-B path: `xdl.app.analyze` + the single `to_card`
+        shaper — same code `python -m xdl.ui` runs, minus the network."""
+        results = await core_analyze(raw_urls, self.settings, client=self.client)
+        return [to_card(raw, r) for raw, r in zip(raw_urls, results, strict=True)]
 
     async def item_files(self, tweet_id: str) -> list[str]:
         def _sync() -> list[str]:

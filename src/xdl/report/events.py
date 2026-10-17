@@ -2,7 +2,7 @@
 
 The orchestrator emits these; frontends subscribe and render. Shape is part of
 the cross-lane contract (docs/04 "ProgressEvent dataclass stream") — deviations
-must be recorded in COORDINATION.md.
+must be recorded in DECISIONS.md.
 """
 
 from __future__ import annotations

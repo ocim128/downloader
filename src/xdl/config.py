@@ -33,8 +33,6 @@ class StorageCfg(BaseModel):
 class ResolverCfg(BaseModel):
     primary: str = "syndication"
     fallback: str = "auto"  # auto | ytdlp | fxtwitter | none
-    ytdlp_mode: str = "resolve-only"
-    googlebot_retry: bool = True
 
 
 class EngineCfg(BaseModel):
@@ -42,18 +40,10 @@ class EngineCfg(BaseModel):
     resolve_concurrency: int = Field(default=4, ge=1)
     retries: int = Field(default=5, ge=1)
     delay: float = 0.0  # 0 = jittered 0.2-0.5s between resolves
-    chunk_kib: int = Field(default=64, ge=1)
 
 
 class HlsCfg(BaseModel):
     ffmpeg_timeout_min: int = 30
-
-
-class LogCfg(BaseModel):
-    file: bool = True
-    level: str = "info"
-    console_level: str | None = None  # -v/-vv override; None = follow `level`
-    dir: Path | None = None  # None -> <app_dir>/logs (mirrors StorageCfg.db_path)
 
 
 class Settings(BaseModel):
@@ -61,7 +51,6 @@ class Settings(BaseModel):
     resolver: ResolverCfg = ResolverCfg()
     engine: EngineCfg = EngineCfg()
     hls: HlsCfg = HlsCfg()
-    log: LogCfg = LogCfg()
 
     @classmethod
     def load(
@@ -78,10 +67,10 @@ class Settings(BaseModel):
         """
         merged: dict[str, Any] = {}
         toml = _load_toml(config_path)
-        _deep_merge(merged, _prune_unknown("config.toml", toml)[0])
+        _deep_merge(merged, _prune_unknown("config.toml", toml))
         if read_env:
             env = _load_env()
-            _deep_merge(merged, _prune_unknown("env", env)[0])
+            _deep_merge(merged, _prune_unknown("env", env))
         if overrides:
             _deep_merge(merged, _nested(overrides))
         settings = cls(**merged)
@@ -92,11 +81,10 @@ class Settings(BaseModel):
 
     @property
     def app_dir(self) -> Path:
-        """Per-user app dir (config.toml, state.db, logs/ live here).
+        """Per-user app dir (config.toml and state.db live here).
 
         Windows: %LOCALAPPDATA%/xdl — platformdirs v4 nests author+name by
-        default; appauthor=False keeps it single-level. Plan text said
-        %APPDATA%/xdl; noted in COORDINATION.md, configurable in M6.
+        default; appauthor=False keeps it single-level (DECISIONS.md #16).
         """
         return Path(platformdirs.user_config_dir("xdl", appauthor=False))
 
@@ -128,7 +116,6 @@ _ENV_ALIASES = {
     "XDL_CONCURRENCY": ("engine", "concurrency"),
     "XDL_RESOLVE_CONCURRENCY": ("engine", "resolve_concurrency"),
     "XDL_FALLBACK": ("resolver", "fallback"),
-    "XDL_LOG_LEVEL": ("log", "level"),
 }
 
 
@@ -152,18 +139,14 @@ def _load_env() -> dict[str, Any]:
     return out
 
 
-def _prune_unknown(
-    source: str, data: dict[str, Any]
-) -> tuple[dict[str, Any], dict[str, Any]]:
+def _prune_unknown(source: str, data: dict[str, Any]) -> dict[str, Any]:
     """Drop keys that do not exist on Settings (2 levels deep), warning once
-    per key. Returns (clean_data, dropped) so a stale template or stray env
-    var warns instead of bricking the CLI."""
+    per key — a stale template or stray env var warns instead of bricking
+    the CLI."""
     clean: dict[str, Any] = {}
-    dropped: dict[str, Any] = {}
     sections = Settings.model_fields
     for section, value in data.items():
         if section not in sections:
-            dropped[section] = dict(value) if isinstance(value, dict) else value
             warnings.warn(
                 f"unknown config section '{section}' (source: {source})",
                 UserWarning,
@@ -180,14 +163,13 @@ def _prune_unknown(
             if field in fields:
                 keep[field] = field_value
                 continue
-            dropped.setdefault(section, {})[field] = field_value
             warnings.warn(
                 f"unknown config key '{section}.{field}' (source: {source})",
                 UserWarning,
                 stacklevel=3,
             )
         clean[section] = keep
-    return clean, dropped
+    return clean
 
 
 def _coerce(raw: str) -> Any:

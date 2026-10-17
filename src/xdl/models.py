@@ -1,8 +1,7 @@
 """Cross-stage data types (the contract every layer shares).
 
-Shapes here follow docs/04-project-structure.md "Core models" verbatim; the web
-UI lane codes against these documented shapes, so any deviation must be recorded
-in COORDINATION.md.
+Shapes here follow docs/04-project-structure.md "Core models"; deviations are
+recorded in DECISIONS.md.
 """
 
 from __future__ import annotations
@@ -39,9 +38,8 @@ class ErrorCode(StrEnum):
     DISK_FULL = "DISK_FULL"
     WRITE_ERROR = "WRITE_ERROR"
     CANCELLED = "CANCELLED"
-    # M5 additions (not in the docs/technical/08 table — noted in
-    # COORDINATION.md): ffmpeg needed for a conversion the user asked for, and
-    # a failed conversion run.
+    # ffmpeg needed for a conversion the user asked for, and a failed
+    # conversion run (docs/technical/08 table is additive here).
     FFMPEG_REQUIRED = "FFMPEG_REQUIRED"
     TRANSCODE_FAILED = "TRANSCODE_FAILED"
 
@@ -76,14 +74,6 @@ class XdlError(Exception):
     @property
     def retryable(self) -> bool:
         return self.code in _RETRYABLE
-
-
-class LinkExpiredError(XdlError):
-    """Raised by the engine on a media-URL 403; the orchestrator (never the
-    engine) re-resolves and re-dispatches once (layering rule 6)."""
-
-    def __init__(self, detail: str = "") -> None:
-        super().__init__(ErrorCode.LINK_EXPIRED, detail, retry_after=0.0)
 
 
 class CancelToken:
@@ -180,24 +170,6 @@ class Chosen(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
-# Stage 4 — download
-# --------------------------------------------------------------------------- #
-
-
-class DownloadJob(BaseModel):
-    ref: TweetRef
-    media_index: int  # 1-based
-    kind: Literal["video", "gif"] = "video"
-    url: str
-    dest: Path
-    expected_size: int | None = None
-    content_type: str = "video/mp4"
-    bitrate: int | None = None
-    width: int | None = None
-    height: int | None = None
-
-
-# --------------------------------------------------------------------------- #
 # Results
 # --------------------------------------------------------------------------- #
 
@@ -286,7 +258,6 @@ class DownloadRow(BaseModel):
     variant_url: str | None = None
     file_path: Path
     size_bytes: int | None = None
-    sha256: str | None = None
     status: Literal["ok", "incomplete", "failed"] = "incomplete"
     error: str | None = None
     source: str | None = None

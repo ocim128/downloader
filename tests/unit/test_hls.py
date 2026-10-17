@@ -138,11 +138,6 @@ def test_detect_drm_rejects(file: str, method: str) -> None:
     assert method in excinfo.value.detail
 
 
-def test_target_duration() -> None:
-    assert hls.target_duration(_read("child_plain.m3u8")) == 10.0
-    assert hls.target_duration("nope") is None
-
-
 # --------------------------------------------------------------------------- #
 # ffmpeg argv (assert on exact argv arrays — never live runs, per docs)
 # --------------------------------------------------------------------------- #
@@ -192,23 +187,6 @@ def test_require_ffmpeg_missing(monkeypatch: pytest.MonkeyPatch) -> None:
         hls.require_ffmpeg()
     assert excinfo.value.code is ErrorCode.HLS_REQUIRES_FFMPEG
     assert "winget install ffmpeg" in excinfo.value.detail
-
-
-# --------------------------------------------------------------------------- #
-# progress frames
-# --------------------------------------------------------------------------- #
-
-def test_parse_progress_frames_groups() -> None:
-    lines = [
-        "frame=1", "out_time_ms=250", "total_size=456", "",
-        "out_time_ms=789",
-    ]
-    got: list[dict[str, str]] = []
-    hls.parse_progress_frames(lines, got.append)
-    assert got == [
-        {"frame": "1", "out_time_ms": "250", "total_size": "456"},
-        {"out_time_ms": "789"},
-    ]
 
 
 # --------------------------------------------------------------------------- #

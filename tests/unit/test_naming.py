@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from xdl.models import Author, MediaAsset, ResolvedTweet, TweetRef
-from xdl.storage.naming import next_available, render_path, sanitize_segment, slugify
+from xdl.storage.naming import render_path, sanitize_segment, slugify
 
 
 @pytest.mark.parametrize(
@@ -137,12 +137,3 @@ def test_render_path_emoji_text_slug(tmp_path: Path) -> None:
     )
     p = render_path(tmp_path, tweet, 1, template="{date}_{id}_{slug}")
     assert p.name == f"{_local_date(tweet)}_20_just-setting-up-my-twttr.mp4"
-
-
-def test_next_available(tmp_path: Path) -> None:
-    first = tmp_path / "a.mp4"
-    assert next_available(first) == first
-    first.write_bytes(b"x")
-    assert next_available(first) == tmp_path / "a (2).mp4"
-    (tmp_path / "a (2).mp4").write_bytes(b"x")
-    assert next_available(first) == tmp_path / "a (3).mp4"

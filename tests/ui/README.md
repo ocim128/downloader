@@ -61,15 +61,13 @@ python -m xdl.ui --no-open --port 7801
 | `stub_orchestrator.py` | fault-injection stub only (was the round-1 full stub) |
 | `test_serve.py` | both tiers, sections marked |
 
-## Known filings against the core (do not "fix" here)
+## Resolved filings (kept as regression notes)
 
-- Retrying a failed NO_VIDEO item re-runs it and reports `skipped`, not
-  `failed`: `app.py` upserts `tweets.media_count=0` for photo-only posts, so
-  `seen_complete()` counts 0 ok-rows == 0 as a false complete. Filed under
-  COORDINATION.md `## Agent B notes` — belongs to `src/xdl/app.py` /
-  `storage/state.py` (Agent A's lane); `test_retry_runs_only_failed_items`
-  carries a canary comment until it lands.
-- Per-item `quality`/`format` choices are still collected by the UI (POST
-  /jobs `items[].url/quality/format`) and applied only as a batch-level
-  quality pass-through; per-item consumption lands when `BatchRequest`
-  grows a per-item surface (post-merge).
+- Retrying a failed NO_VIDEO item used to report `skipped`: `app.py` upserted
+  `tweets.media_count=0` for photo-only posts, so `seen_complete()` counted
+  0 ok-rows == 0 as a false complete. Fixed — a `tweets` row is written only
+  after `select()` succeeds; `test_retry_runs_only_failed_items` asserts the
+  retry reports `failed`.
+- Per-item `quality`/`format` choices were collected by the UI but only applied
+  batch-level. The phantom surface is gone: `/analyze` cards describe the post
+  only, and `quality: "mp3"` is a batch-level audio-only choice.

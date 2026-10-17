@@ -26,8 +26,6 @@ FFMPEG_INSTALL_HINT = "install: winget install ffmpeg / choco install ffmpeg"
 #: #EXT-X-KEY methods we accept transparently (docs: plain or AES-128 only).
 _OK_KEY_METHODS = frozenset({"none", "aes-128"})
 
-_TARGET_DURATION_RE = re.compile(r"EXT-X-TARGETDURATION:(\d+)")
-
 
 @dataclass(frozen=True)
 class Rendition:
@@ -135,13 +133,6 @@ def detect_drm(text: str) -> None:
             )
 
 
-def target_duration(text: str) -> float | None:
-    """EXT-X-TARGETDURATION in seconds, for the manual-fallback sanity check."""
-    if m := _TARGET_DURATION_RE.search(text):
-        return float(m.group(1))
-    return None
-
-
 # --------------------------------------------------------------------------- #
 # ffmpeg
 # --------------------------------------------------------------------------- #
@@ -178,27 +169,6 @@ def ffmpeg_argv(
 
 
 _FRAME_LINE_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$")
-
-
-def parse_progress_frames(
-    lines: list[str], frame_cb: Callable[[dict[str, str]], None] | None
-) -> None:
-    """`frame_cb` gets one dict per ffmpeg -progress frame
-    (blank-line-separated key=value groups: out_time_ms, total_size, ...)."""
-    if frame_cb is None:
-        return
-    current: dict[str, str] = {}
-    for line in lines:
-        line = line.strip()
-        if not line:
-            if current:
-                frame_cb(dict(current))
-                current = {}
-            continue
-        if m := _FRAME_LINE_RE.match(line):
-            current[m.group(1)] = m.group(2)
-    if current:
-        frame_cb(dict(current))
 
 
 async def _pump_frames(

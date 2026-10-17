@@ -90,7 +90,7 @@ def build_chain(settings: Settings, client: httpx.AsyncClient) -> FallbackChain:
 
             from xdl.resolve.ytdlp import YtdlpResolver
 
-            adapters.append(YtdlpResolver(mode=settings.resolver.ytdlp_mode))
+            adapters.append(YtdlpResolver())
         except ImportError:
             if fallback == "ytdlp":
                 raise XdlError(

@@ -1,7 +1,7 @@
 """Single-file streaming download: .part, Range resume, verify, atomic rename.
 
 docs/technical/03. The engine never imports a resolver; a media-URL 403 raises
-`LinkExpiredError` and the ORCHESTRATOR recovers (layering rule 6).
+LINK_EXPIRED and the ORCHESTRATOR recovers (layering rule 6).
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from pathlib import Path
 import httpx
 
 from xdl.engine.throttle import ThrottleState, parse_retry_after
-from xdl.models import CancelToken, DownloadJob, ErrorCode, LinkExpiredError, XdlError
+from xdl.models import CancelToken, ErrorCode, XdlError
 from xdl.urls import is_allowed_media_url
 
 #: cb(delta_bytes, total_bytes_or_None)
@@ -25,29 +25,29 @@ _CHUNK = 64 * 1024
 
 
 async def fetch(
-    job: DownloadJob,
+    url: str,
+    dest: Path,
     client: httpx.AsyncClient,
     *,
     cb: ProgressFn | None = None,
     throttle: ThrottleState | None = None,
     cancel: CancelToken | None = None,
 ) -> Path:
-    """Stream one file to `job.dest` via a `.part` temp; returns final path.
+    """Stream one file to `dest` via a `.part` temp; returns the final path.
 
     - Range-resume from an existing `.part` (206 -> total from Content-Range;
       200 to a ranged request -> restart from zero, never append a mismatch).
     - Unknown length tolerated (no false INTEGRITY_MISMATCH).
     - Known length verified exactly; mismatch deletes the `.part` and fails.
-    - 403 on the media URL -> LinkExpiredError (orchestrator re-resolves once).
+    - 403 on the media URL -> LINK_EXPIRED (orchestrator re-resolves once).
     - CANCELLED raises per chunk (Ctrl+C graceful drain); the `.part` written
       so far is retained for resume.
     """
-    if not is_allowed_media_url(job.url):
-        raise XdlError(ErrorCode.URL_UNRECOGNIZED, f"media URL host not allowed: {job.url}")
+    if not is_allowed_media_url(url):
+        raise XdlError(ErrorCode.URL_UNRECOGNIZED, f"media URL host not allowed: {url}")
     if cancel is not None and cancel.cancelled:
         raise XdlError(ErrorCode.CANCELLED, "cancelled before request")
 
-    dest = job.dest
     dest.parent.mkdir(parents=True, exist_ok=True)
     part = dest.with_name(dest.name + ".part")
     offset = part.stat().st_size if part.exists() else 0
@@ -57,17 +57,19 @@ async def fetch(
 
     headers = {"Range": f"bytes={offset}-"} if offset else {}
     try:
-        async with client.stream("GET", job.url, headers=headers) as r:
+        async with client.stream("GET", url, headers=headers) as r:
             if r.status_code == 429:
                 if throttle is not None:
                     throttle.report_429(r.headers.get("retry-after"))
                 raise XdlError(
                     ErrorCode.RATE_LIMITED,
                     "download rate limited",
-                    retry_after=_retry_after(r.headers.get("retry-after")),
+                    retry_after=parse_retry_after(r.headers.get("retry-after")),
                 )
             if r.status_code == 403:
-                raise LinkExpiredError("signed CDN URL expired mid-transfer")
+                raise XdlError(
+                    ErrorCode.LINK_EXPIRED, "signed CDN URL expired mid-transfer"
+                )
             if offset and r.status_code == 200:
                 offset = 0  # server ignored Range: restart clean, never append
             if r.status_code == 206:
@@ -141,7 +143,3 @@ def _status_error(status: int) -> XdlError:
     if status in (401,):
         return XdlError(ErrorCode.AUTH_REQUIRED, f"HTTP {status} on media URL")
     return XdlError(ErrorCode.UPSTREAM_ERROR, f"HTTP {status} on media URL")
-
-
-def _retry_after(raw: str | None) -> float | None:
-    return parse_retry_after(raw)

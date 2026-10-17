@@ -1,9 +1,9 @@
-# xdl config.toml — documented template (Agent B, M6 round 2)
+# xdl config.toml — documented template
 #
 # Location (Windows):       %LOCALAPPDATA%\xdl\config.toml
 # (Linux: ~/.config/xdl/config.toml) — single-level app dir via
 # platformdirs.user_config_dir("xdl", appauthor=False), matching the shipped
-# state.db location (deviation 7 in COORDINATION.md).
+# state.db location (DECISIONS.md #7).
 #
 # The file is optional. Missing sections/keys fall back to built-in defaults;
 # unknown keys warn (stale templates must not brick the CLI).
@@ -12,7 +12,7 @@
 #   CLI flags > XDL_* env vars > this file > defaults
 #
 # Env mapping (mechanical): XDL_<SECTION>__<FIELD>, e.g.
-#   XDL_ENGINE__RETRIES=9       XDL_LOG_LEVEL=debug
+#   XDL_ENGINE__RETRIES=9       XDL_ENGINE__DELAY=0.5
 #   XDL_CONCURRENCY=4           XDL_RESOLVE_CONCURRENCY=6
 #   XDL_FALLBACK=fxtwitter      XDL_OUTPUT=D:/Media/x   (storage.root)
 
@@ -25,21 +25,12 @@ filename_template = "{id}"       # vars: {id} {date} {author} {index} {slug}
 [resolver]
 primary = "syndication"         # cdn.syndication.twimg.com adapter
 fallback = "auto"               # auto | ytdlp | fxtwitter | none
-ytdlp_mode = "resolve-only"     # yt-dlp never ships uploads client-side
-googlebot_retry = true
 
 [engine]
 concurrency = 3                 # parallel file downloads (-c)
 resolve_concurrency = 4         # parallel metadata lookups
 retries = 5                     # max attempts per item
 delay = 0.0                     # seconds; 0 = jittered 0.2-0.5s between resolves
-chunk_kib = 64                  # streaming chunk size
 
 [hls]
-ffmpeg_timeout_min = 30         # hard stop for one ffmpeg remux
-
-[log]
-file = true                     # rotating 5 MB x 3 file log, always-on INFO
-level = "info"                  # console default level
-# console_level = ""            # optional; CLI -v/-vv overrides both
-# dir = ""                      # optional log dir [default: app_dir/logs/xdl.log]
+ffmpeg_timeout_min = 30         # hard stop for one ffmpeg remux/transcode

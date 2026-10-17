@@ -223,12 +223,10 @@ changes the syndication shape outright, the immediate remedy is a config flip or
 - `YtdlpResolver` implements the same `Resolver` protocol and maps
   `yt_dlp` extraction errors onto our taxonomy (`404 → NOT_FOUND`,
   login-required/sensitive → `AUTH_REQUIRED`/`NOT_EMBEDDABLE`, network → `NETWORK`).
-- Two modes (config `ytdlp_mode`):
-  - `resolve-only` (**default**) — use its info dict to build `ResolvedTweet`; our
-    engine still downloads, so naming, sidecars, state, and dedup behave identically
-    for every adapter.
-  - `full` — let yt-dlp download too (for the day even our engine's assumptions about
-    variant URLs break); finalize still records results in state + sidecars.
+- **Resolve-only** (the only mode): use its info dict to build `ResolvedTweet`; our
+  engine still downloads, so naming, sidecars, state, and dedup behave identically for
+  every adapter. The `ytdlp_mode` knob was removed — a config choice with one option
+  is not a choice (DECISIONS.md #2).
 - Startup check: warn when the installed yt-dlp is older than ~14 days (X extractor
   fixes land continuously; `pip install -U yt-dlp` is the whole remedy).
 
@@ -245,7 +243,5 @@ changes the syndication shape outright, the immediate remedy is a config flip or
 [resolver]
 primary = "syndication"        # syndication | fxtwitter
 fallback = "auto"              # auto (ytdlp when importable) | ytdlp | fxtwitter | none
-ytdlp_mode = "resolve-only"    # resolve-only | full
-googlebot_retry = true         # one retry with Googlebot UA on syndication 404-storms
 # graphql_* options land in phase 7
 ```

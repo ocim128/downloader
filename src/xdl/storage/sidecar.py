@@ -25,7 +25,6 @@ def build_payload(
     media_file: Path,
     *,
     size_bytes: int | None,
-    sha256: str | None = None,
 ) -> dict[str, object]:
     variant = chosen.variant
     asset = chosen.asset
@@ -41,8 +40,6 @@ def build_payload(
         "size_bytes": size_bytes,
         "poster_url": asset.poster_url or asset.url_best or None,
     }
-    if sha256:
-        media_entry["sha256"] = sha256
     return {
         "schema_version": SCHEMA_VERSION,
         "tweet_id": tweet.ref.tweet_id,

@@ -16,3 +16,6 @@ state.db-*
 
 # Local env
 .env
+
+# Script scratch output (find_candidates.py)
+.tmp_candidates.json

@@ -4,15 +4,13 @@ Private, local batch downloader for X (Twitter) video posts — inspired by
 [x-downloader.com](https://x-downloader.com/en/), but self-hosted on your own
 machine: no web service, no third-party servers, no accounts.
 
-**Status (2026-10-17, round 2): M0–M3 shipped, M6 config/logging shipped.**
-`xdl <url>` downloads videos with metadata sidecars and SQLite history;
-batches, dedup, skip-per-post and retry-failed work; the local web UI runs
-(`python -m xdl.ui`) driven by the real core; config precedence
-(CLI > `XDL_*` env > `config.toml` > defaults) and the rotating file log are
-in. Resilience work (M4) and the HLS/ffmpeg/MP3 media paths (M5) are landing
-next on `feat/core-2` — see the
-[milestone plan](docs/05-implementation-plan.md) and
-[CHANGELOG.md](CHANGELOG.md).
+**Status (2026-10-17, round 3): M0–M6 shipped.** `xdl <url>` downloads videos
+with metadata sidecars and SQLite history; batches, dedup, skip-per-post and
+retry-failed work; the local web UI runs (`python -m xdl.ui` / `xdl serve`)
+driven by the real core; config precedence (CLI > `XDL_*` env > `config.toml`
+> defaults) is in. Resilience (M4: backoff, global 429 pause, circuit breaker,
+`.part` resume) and the HLS/ffmpeg/MP3/GIF media paths (M5) are shipped. See
+[CHANGELOG.md](CHANGELOG.md) and [DECISIONS.md](DECISIONS.md).
 
 ## Quickstart
 
@@ -37,9 +35,9 @@ xdl -o D:/Media/x --quality 720 --concurrency 4 url1 url2
 xdl --dry-run url1            # resolve + print planned paths, download nothing
 xdl retry-failed              # re-run items whose last run failed
 
-# the local web UI (127.0.0.1 only; `xdl serve` alias pending)
+# the local web UI (127.0.0.1 only; `xdl serve` is the same runner)
 python -m xdl.ui              # opens a browser automatically
-python -m xdl.ui --no-open    # or just print the URL
+xdl serve --no-open           # or just print the URL
 ```
 
 Per post you get: the best-bitrate MP4 at
@@ -49,8 +47,9 @@ is exactly the status id from the URL), a
 row in the local SQLite state store so re-runs **skip** already-downloaded
 posts and `retry-failed` picks up the rest. Multi-video posts produce
 `_v2`/`_v3` files; a post that half-finished is re-run for exactly the
-missing media. HLS-only best variants currently stop with a clear
-`HLS_REQUIRES_FFMPEG` message until the M5 remux wiring lands.
+missing media. HLS-only variants are remuxed through ffmpeg when it is
+installed (`--audio-only` → MP3, `--gif` → real GIF); without ffmpeg they
+stop with a clear `HLS_REQUIRES_FFMPEG` message.
 
 Exit codes: `0` all ok/skipped · `1` partial · `2` everything failed.
 
@@ -59,11 +58,9 @@ Exit codes: `0` all ok/skipped · `1` partial · `2` everything failed.
 Precedence: **CLI flags > `XDL_*` env vars > `config.toml` > defaults.**
 Env mapping is mechanical — `XDL_<SECTION>__<FIELD>` (e.g. `XDL_ENGINE__RETRIES=9`)
 plus the conveniences `XDL_OUTPUT`, `XDL_CONCURRENCY`, `XDL_RESOLVE_CONCURRENCY`,
-`XDL_FALLBACK`, `XDL_LOG_LEVEL`. File location: `%LOCALAPPDATA%\xdl\config.toml`
+`XDL_FALLBACK`. File location: `%LOCALAPPDATA%\xdl\config.toml`
 (`~/.config/xdl/config.toml` on Linux); a missing file is fine, unknown keys warn.
 Copy the commented template `docs/config-template.toml` there as a starting point.
-Logs: console via `-v/-vv`; always-on rotating file (5 MB × 3) at
-`%LOCALAPPDATA%\xdl\logs\xdl.log` (values that look like cookies are redacted).
 
 ## Development
 
@@ -95,7 +92,7 @@ asyncio + httpx + rich), and implementation milestones:
 - Single Python package, one process, CLI (`xdl`) + localhost web UI sharing one core.
 - Resolver chain: syndication fast-path → yt-dlp adapter (auto, bundled);
   no X account needed by default. Token algorithm is a byte-exact V8 port
-  (verified 3000-id sample vs Node 22) — see COORDINATION.md for the decision.
+  (verified 3000-id sample vs Node 22) — see [DECISIONS.md](DECISIONS.md).
 - Deterministic Windows-safe filenames, JSON metadata sidecars, SQLite history
   with skip/retry-failed semantics.
 - Everything local — nothing phones home; the web UI binds 127.0.0.1 only and

@@ -30,7 +30,7 @@ from fastapi.testclient import TestClient
 
 from tests.ui.real_core import PHOTO_ID, VIDEO_ID, RealCoreRunner
 from tests.ui.stub_orchestrator import StubOrchestrator
-from xdl.config import EngineCfg, LogCfg, Settings, StorageCfg
+from xdl.config import EngineCfg, Settings, StorageCfg
 from xdl.ui import app as ui_app
 from xdl.ui.app import create_app
 
@@ -41,7 +41,6 @@ def _settings(tmp_path: Path, *, delay: float = 0.0) -> Settings:
     return Settings(
         storage=StorageCfg(root=tmp_path / "downloads", db_path=tmp_path / "state.db"),
         engine=EngineCfg(delay=delay),
-        log=LogCfg(file=False),
     )
 
 
@@ -215,11 +214,9 @@ def test_retry_runs_only_failed_items(client: TestClient) -> None:
     assert resp.json()["retried"] == 1
     retry_detail = _wait_done(client, resp.json()["job_id"])
     assert retry_detail["counts"]["total"] == 1
-    # BUG (filed in COORDINATION.md ## Agent B notes): the retried NO_VIDEO
-    # item reports "skipped", not "failed" — app.py's upsert_tweet() records
-    # media_count=0 for the photo post, so seen_complete() sees 0==ok-rows and
-    # flags a false complete. Expect "failed" once Agent A fixes skip logic.
-    assert retry_detail["items"][0]["status"] in ("failed", "skipped")
+    # Photo-only posts never anchor media_count=0, so the retry re-runs and
+    # fails NO_VIDEO again instead of being falsely skipped.
+    assert retry_detail["items"][0]["status"] == "failed"
 
 
 def test_retry_without_failures_is_noop(client: TestClient) -> None:
@@ -287,8 +284,11 @@ def test_analyze_real_chain(client: TestClient) -> None:
     assert card["tweet_id"] == VIDEO_ID
     assert card["author"] == "reactiive_"
     assert card["poster"].startswith("https://pbs.twimg.com/")
-    assert card["formats"] == ["Best MP4", "MP3"]
-    assert items[1]["media_kinds"] == ["photo"]  # photo post resolves; only download fails
+    assert card["canonical_url"].endswith(f"/status/{VIDEO_ID}")
+    # No per-item format surface: /analyze cards describe the post only.
+    assert "formats" not in card
+    assert items[1]["tweet_id"] == PHOTO_ID  # photo post resolves; only download fails
+    assert "error" not in items[1]
 
 
 def test_reveal_via_real_state(

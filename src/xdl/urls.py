@@ -7,30 +7,20 @@ Host matching is exact-string on the registrable domain — no suffix tricks.
 from __future__ import annotations
 
 import re
-from datetime import UTC, datetime, timedelta
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
 
 from xdl.models import ErrorCode, TweetRef, XdlError
 
-_ALLOWED_HOSTS = frozenset(
-    {
-        "x.com",
-        "twitter.com",
-        "platform.twitter.com",
-        "fxtwitter.com",
-        "vxtwitter.com",
-        "fixupx.com",
-        "twittpr.com",
-    }
-)
+#: The one host list every URL form below matches against (mirrors of X count).
+_HOSTS = r"(?:platform\.twitter|fxtwitter|vxtwitter|fixupx|twittpr|x|twitter)\.com"
+_HOST_PREFIX = rf"(?:www\.|mobile\.)?{_HOSTS}"
 
 # Spec reference implementation (docs/technical/01), slightly loosened to also
 # catch URLs embedded in free text (form 14) via .search().
 STATUS_RE = re.compile(
-    r"(?:https?:)?//(?:www\.|mobile\.)?"
-    r"(?P<host>(?:fxtwitter|vxtwitter|fixupx|twittpr|x|twitter)\.com)"
+    rf"(?:https?:)?//{_HOST_PREFIX}"
     r"(?::\d+)?"  # tolerate stray port from sloppy pastes
     r"/(?P<user>[A-Za-z0-9_]{1,15})"
     r"/status(?:es)?/(?P<id>\d{2,19})(?!\d)"  # boundary: no silent truncation
@@ -39,8 +29,7 @@ STATUS_RE = re.compile(
 )
 
 WEB_RE = re.compile(
-    r"(?:https?:)?//(?:www\.|mobile\.)?"
-    r"(?:(?:fxtwitter|vxtwitter|fixupx|twittpr|x|twitter)\.com)"
+    rf"(?:https?:)?//{_HOST_PREFIX}"
     r"(?::\d+)?/i/web/status(?:es)?/(?P<id>\d{2,19})(?!\d)"
     r"(?:/[^\s?&#]*)?(?:[?&#][^\s]*)?"
 )
@@ -50,14 +39,12 @@ WEB_RE = re.compile(
 # allowed hosts (an evil host must stay URL_UNRECOGNIZED).
 _BAD_ID_RE = re.compile(r"/status(?:es)?/(\d+)(?:[/?&#\s]|$)")
 _ALLOWED_HOST_RE = re.compile(
-    r"(?:https?:)?//(?:www\.|mobile\.)?"
-    r"(?:x|twitter|platform\.twitter|fxtwitter|vxtwitter|fixupx|twittpr)\.com"
+    rf"(?:https?:)?//{_HOST_PREFIX}"
     r"(?::\d+)?(?:[/?#]|$)"
 )
 
 INTENT_RE = re.compile(
-    r"(?:https?:)?//(?:www\.|mobile\.)?"
-    r"(?:(?:fxtwitter|vxtwitter|fixupx|twittpr|x|twitter)\.com)"
+    rf"(?:https?:)?//{_HOST_PREFIX}"
     r"(?::\d+)?/intent/(?:post|tweet)(?:[?&#][^\s]*)?"
 )
 
@@ -68,9 +55,6 @@ EMBED_RE = re.compile(
 TCO_RE = re.compile(r"(?:https?:)?//(?:www\.)?t\.co/(?P<path>[A-Za-z0-9]+)", re.IGNORECASE)
 
 _BARE_DOMAIN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.-]*\.[A-Za-z]{2,}(?:/|$)")
-
-# Twitter snowflake epoch (ms) — used for plausibility warnings only.
-_SNOWFLAKE_EPOCH_MS = 1288834974657
 
 
 def parse(raw: str, *, id_mode: bool = False) -> TweetRef:
@@ -105,8 +89,6 @@ def parse(raw: str, *, id_mode: bool = False) -> TweetRef:
 
     if m := INTENT_RE.search(s):
         target = m.group(0)
-        if not _host_allowed(target):
-            raise XdlError(ErrorCode.URL_UNRECOGNIZED, f"not an X post URL: {raw!r}")
         qs = parse_qs(urlsplit(target).query)
         if ids := qs.get("tweet_id"):
             _validate_id(ids[0])
@@ -168,14 +150,6 @@ def is_allowed_media_url(url: str) -> bool:
     )
 
 
-def snowflake_plausible(tweet_id: str, *, now: datetime | None = None) -> bool:
-    """(id >> 22) + epoch within 2006-11-01 .. now+1d. Warning, not rejection."""
-    ts_ms = (int(tweet_id) >> 22) + _SNOWFLAKE_EPOCH_MS
-    created = datetime.fromtimestamp(ts_ms / 1000, tz=UTC)
-    upper = (now or datetime.now(tz=UTC)) + timedelta(days=1)
-    return datetime(2006, 11, 1, tzinfo=UTC) <= created <= upper
-
-
 def _ensure_scheme(s: str) -> str:
     """Tolerate scheme-less and protocol-relative forms (12, 15)."""
     if "://" in s or s.startswith("//"):
@@ -183,12 +157,6 @@ def _ensure_scheme(s: str) -> str:
     if _BARE_DOMAIN.match(s):
         return f"https://{s}"
     return s
-
-
-def _host_allowed(url: str) -> bool:
-    host = (urlsplit(url).hostname or "").lower()
-    stripped = host.removeprefix("www.").removeprefix("mobile.")
-    return host in _ALLOWED_HOSTS or stripped in _ALLOWED_HOSTS
 
 
 def _validate_id(tweet_id: str) -> None:
