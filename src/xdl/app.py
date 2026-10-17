@@ -402,13 +402,16 @@ async def _process_item(item: _Item, ctx: _RunCtx) -> ItemResult:
         return _failed_result(item, err)
 
     downloadable = [m for m in tweet.media if m.kind in ("video", "gif")]
-    ctx.state.upsert_tweet(ref.tweet_id, tweet.author.screen_name, len(downloadable))
 
     try:
         chosen = select(tweet.media, ctx.policy)
     except XdlError as err:  # NO_VIDEO etc.
+        # No tweets row for nothing-downloadable posts: a media_count=0 anchor
+        # would make seen_complete() report 0 == 0 and false-skip every re-run
+        # (round-2 B-lane filing: NO_VIDEO retry false-complete).
         emit(ProgressEvent(EventKind.item_done, tweet_id=ref.tweet_id, status="failed"))
         return _failed_result(item, err)
+    ctx.state.upsert_tweet(ref.tweet_id, tweet.author.screen_name, len(downloadable))
     emit(ProgressEvent(EventKind.resolve_done, tweet_id=ref.tweet_id,
                        detail=tweet.author.screen_name))
 

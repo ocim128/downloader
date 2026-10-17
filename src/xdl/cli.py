@@ -164,6 +164,7 @@ def _execute(
     from xdl.app import run_batch
     from xdl.config import Settings
     from xdl.models import BatchRequest, CancelToken
+    from xdl.report.logging import setup_logging
     from xdl.report.render import ConsoleReporter, print_no_tty_fallback
 
     overrides = _overrides(output, concurrency, fallback)
@@ -201,6 +202,7 @@ def _execute(
         settings.engine.retries = retries
 
     _warn_stale_ytdlp(settings)
+    setup_logging(settings, verbose=verbose)
 
     request = BatchRequest(
         inputs=inputs,
@@ -372,9 +374,6 @@ def config_cmd() -> None:
 
 
 def main() -> None:
-    # Optional logging hook (B's lane): call setup_logging(settings) at
-    # startup once xdl.report.logging ships.
-    # TODO(core2): if module xdl.report.logging exists -> wire it here.
     # UTF-8 output guard for legacy Windows consoles (docs/technical/07).
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):

@@ -196,6 +196,33 @@ async def test_second_run_skips_without_network(settings: Settings) -> None:
     assert "already downloaded" in report.results[0].detail
 
 
+async def test_photo_only_fails_again_on_rerun(settings: Settings) -> None:
+    """Round-2 B-lane filing: a NO_VIDEO post must never false-complete.
+
+    A media_count=0 tweets row made seen_complete() report 0 == 0, turning
+    every re-run of a photo-only post into 'skipped/complete'."""
+    client, _ = make_world()
+    async with client:
+        for report in (
+            await run_batch(
+                request_for([f"https://x.com/photouser/status/{PHOTO_ID}"], settings),
+                client=client,
+            ),
+            await run_batch(
+                request_for([f"https://x.com/photouser/status/{PHOTO_ID}"], settings),
+                client=client,
+            ),
+        ):
+            assert report.exit_code == 2  # single-item batch, all failed
+            assert report.results[0].status == "failed"
+            assert "NO_VIDEO" in report.results[0].detail
+    state = StateStore(settings.db_path)
+    try:
+        assert state.get_tweet(PHOTO_ID) is None  # no nothing-downloadable anchor
+    finally:
+        state.close()
+
+
 async def test_mixed_batch_summary_and_exit_codes(settings: Settings) -> None:
     client, _ = make_world()
     urls = [

@@ -297,3 +297,19 @@ main yet -> marked TODO in `cli.main()` to call `setup_logging(settings)`.
   (29 files). No live-network test paths added.
 - All results quoted from live local runs against `main` HEAD-as-of-2f9eb9c; nothing
   merged to main or `feat/core-2` from this lane.
+
+## Integrator notes
+
+### 2026-10-17 — round-2 integration (main)
+- Merged feat/core-2 then feat/ui-2: no conflicts (ownership held). Gates on
+  merged main: 317 tests / ruff / mypy clean.
+- **Fixed B's filing (NO_VIDEO retry false-complete)**: `app._process_item` no
+  longer upserts a `tweets` row before `select()` succeeds — a photo-only post
+  must not anchor `media_count=0` (0==0 made every re-run a false skip).
+  Regression: `test_photo_only_fails_again_on_rerun`.
+- **Wired `setup_logging`** into `cli._run` after settings assembly (the
+  round-2 planned touchpoint; TODO comment removed).
+- Live check on merged main: mixed-media post 1553065817788407808 → 2 media
+  (gif+video; photo excluded) ok, exit 0; stale-yt-dlp startup warning fired.
+- Remaining backlog lives in docs/05 + both round-2 handoffs (M7 optional;
+  ytdlp full mode; --hls-manual; pre-batch free-space check; live Ctrl+C pass).
