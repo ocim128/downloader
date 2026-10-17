@@ -88,12 +88,11 @@ Full error semantics: [technical/08-errors-and-rate-limits.md](technical/08-erro
 
 - **One asyncio event loop, one process.** No threads except where a library forces it
   (ffmpeg subprocess wrapper — actually a subprocess, not a thread).
-- **Two semaphores, one queue**:
-  - `resolve_sem` (default 4) — metadata lookups are small and fast;
-  - `download_sem` (default 3) — video transfers are heavy and are what X rate-limits.
-- Items stream through an `asyncio.Queue`; workers pick the next stage that is unblocked.
-  In practice the orchestrator runs `resolve` tasks as they come and enqueues download
-  jobs, so slow downloads never block resolution of later URLs.
+- **Two semaphores**: resolve_sem (default 4) bounds metadata lookups; download_sem
+  (default 3) bounds video transfers (what X rate-limits).
+- *Shipped shape (deviation 3, COORDINATION.md)*: semaphore-bounded per-item `asyncio`
+  tasks rather than a literal `asyncio.Queue` + workers — the same bounded fan-out
+  (resolves of later items overlap transfers of earlier ones), with fewer moving parts.
 - **Shared `ThrottleState`**: any 429 flips a global `pause_until` timestamp every worker
   checks before each request; `Retry-After` sets it. See
   [technical/08-errors-and-rate-limits.md](technical/08-errors-and-rate-limits.md).
@@ -152,10 +151,11 @@ consume later. The orchestrator emits neutral `ProgressEvent`s; frontends render
       2026-10-01_1750123456789012352.mp4
       2026-10-01_1750123456789012352.meta.json
       2026-10-01_1750123456789012352_v2.mp4     # multi-video posts
-%APPDATA%/xdl/               # Windows (platformdirs); ~/.config/xdl on Linux
+%LOCALAPPDATA%/xdl/           # Windows (platformdirs, appauthor=False — deviation 7,
+                              #   COORDINATION.md; ~/.config/xdl on Linux)
   config.toml
   state.db                   # SQLite
-  logs/xdl.log               # rotating, --verbose increases level
+  logs/xdl.log               # rotating 5 MB x 3, always-on INFO (-v only widens console)
 ```
 
 ## Configuration flow
