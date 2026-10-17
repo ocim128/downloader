@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>xdl · local</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="bar">
+  <div class="brand">xdl <span class="at">@ local</span></div>
+  <div id="running-chip" class="chip hidden">waiting for batch…</div>
+</header>
+
+<main>
+  <section class="paste" aria-label="paste box">
+    <textarea id="urls" rows="6" spellcheck="false"
+      placeholder="paste post URLs, one per line — # line comments allowed"></textarea>
+    <div class="toolbar">
+      <label>Quality
+        <select id="quality">
+          <option value="best" selected>Best MP4</option>
+          <option value="720">≤ 720p</option>
+          <option value="480">≤ 480p</option>
+          <option value="worst">Worst</option>
+          <option value="mp3">MP3 (audio)</option>
+        </select>
+      </label>
+      <label>Output
+        <input id="output" type="text" placeholder="(default downloads/)">
+      </label>
+      <label>Concurrency
+        <input id="concurrency" type="range" min="1" max="5" step="1" value="3">
+        <output id="concurrency-out">3</output>
+      </label>
+      <span class="spacer"></span>
+      <button id="analyze" class="ghost">Analyze</button>
+      <button id="download">Download all</button>
+    </div>
+    <div id="msg" class="msg hidden"></div>
+  </section>
+
+  <section id="cards" class="cards hidden" aria-label="analyze cards"></section>
+
+  <section id="batch" class="batch hidden" aria-label="current batch">
+    <div class="batch-head">
+      <strong id="batch-title">Batch #—</strong>
+      <span id="batch-counts">ok 0 · skip 0 · fail 0</span>
+      <span class="spacer"></span>
+      <button id="retry" class="ghost hidden">Retry failed</button>
+    </div>
+    <div id="batch-items"></div>
+  </section>
+
+  <section id="history" class="history" aria-label="recent batches">
+    <h3>Recent</h3>
+    <table>
+      <thead><tr><th>#</th><th>when</th><th>counts</th><th>status</th></tr></thead>
+      <tbody id="history-rows">
+        {% for job in history %}
+        <tr data-job="{{ job.job_id }}">
+          <td>#{{ job.job_id }}</td>
+          <td>{{ job.started_at | int }}</td>
+          <td>{{ job.counts.ok }} ok · {{ job.counts.skipped }} skip · {{ job.counts.failed }} fail</td>
+          <td><span class="chip chip-{{ job.status }}">{{ job.status }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section id="detail" class="hidden" aria-label="batch detail">
+    <h3 id="detail-title">Batch detail</h3>
+    <table>
+      <thead><tr><th>tweet</th><th>author</th><th>status</th><th>detail</th><th></th></tr></thead>
+      <tbody id="detail-rows"></tbody>
+    </table>
+  </section>
+</main>
+
+<footer class="bar footer">
+  <span>localhost-only · loopback UI over <code>run_batch</code> · nothing sent anywhere else</span>
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
