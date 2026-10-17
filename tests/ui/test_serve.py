@@ -415,3 +415,46 @@ def test_stub_429_storm_fails_all_items_then_retry(tmp_path: Path) -> None:
         assert retry.json()["retried"] == 3
         retry_detail = _wait_done(test_client, retry.json()["job_id"])
         assert retry_detail["counts"]["failed"] == 3
+
+
+# --------------------------------------------------------------------- #
+# State-backed history (regression: non-empty history crashed the page)
+# --------------------------------------------------------------------- #
+
+
+def test_state_history_renders_on_index(tmp_path: Path) -> None:
+    """Round-2 integration filing: with real state rows behind list_batches,
+    the index page must render — state rows previously lacked `started_at`
+    (template raised UndefinedError) and lack `counts` (must degrade, not
+    crash). Found live: any machine with batch history got HTTP 500 on /."""
+    from xdl.storage.state import StateStore
+    from xdl.ui.__main__ import list_state_batches
+
+    db = tmp_path / "state.db"
+    store = StateStore(db)
+    try:
+        batch_id = store.new_batch("cli", 3)
+        store.finish_batch(batch_id, "partial")
+    finally:
+        store.close()
+
+    rows = list_state_batches(db)
+    assert rows and rows[0]["job_id"] == batch_id
+    assert isinstance(rows[0]["started_at"], float) and rows[0]["started_at"] > 0
+    assert rows[0]["total"] == 3 and rows[0]["origin"] == "cli"
+    assert "counts" not in rows[0]
+
+    async def _list_batches(limit: int = 50) -> list[dict[str, Any]]:
+        return list_state_batches(db, limit)
+
+    async def _unused_run(req: Any, **kw: Any) -> Any:  # pragma: no cover
+        raise AssertionError("run_batch must not be called here")
+
+    app = create_app(_settings(tmp_path), _unused_run, list_batches=_list_batches)
+    with TestClient(app, base_url=_BASE_URL) as test_client:
+        page = test_client.get("/")
+        assert page.status_code == 200
+        assert f"#{batch_id}" in page.text
+        assert "item(s)" in page.text  # counts-free degradation visible
+        jobs = test_client.get("/jobs").json()["jobs"]
+        assert jobs[0]["started_at"] > 0

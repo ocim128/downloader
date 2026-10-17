@@ -14,6 +14,8 @@ from __future__ import annotations
 import argparse
 import asyncio
 import webbrowser
+from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -22,6 +24,34 @@ import uvicorn
 from xdl.config import Settings
 
 _PORT_DEFAULT = 7788
+
+
+def list_state_batches(db_path: Path, limit: int = 50) -> list[dict[str, Any]]:
+    """State-store batch rows in the UI hub's job shape (history table + JS).
+
+    Per-status counts are not reconstructable from state (skipped items leave
+    no rows), so `counts` is omitted — template/JS degrade to totals."""
+    from xdl.storage.state import StateStore
+
+    store = StateStore(db_path)
+    try:
+        rows: list[dict[str, Any]] = []
+        for r in store.batches(limit):
+            try:
+                started = datetime.fromisoformat(r["created_at"]).timestamp()
+            except ValueError:
+                started = 0.0
+            rows.append({
+                "job_id": r["batch_id"],
+                "status": r["status"],
+                "started_at": started,
+                "inputs": r["total_items"],
+                "total": r["total_items"],
+                "origin": r["origin"],
+            })
+        return rows
+    finally:
+        store.close()
 
 
 def build(port: int) -> Any:
@@ -83,20 +113,7 @@ def build(port: int) -> Any:
         return cards
 
     def _list_batches_sync(limit: int) -> list[dict[str, Any]]:
-        store = StateStore(settings.db_path)
-        try:
-            return [
-                {
-                    "job_id": r["batch_id"],
-                    "origin": r["origin"],
-                    "total": r["total_items"],
-                    "status": r["status"],
-                    "created_at": r["created_at"],
-                }
-                for r in store.batches(limit)
-            ]
-        finally:
-            store.close()
+        return list_state_batches(settings.db_path, limit)
 
     async def list_batches(limit: int) -> list[dict[str, Any]]:
         return list(await asyncio.to_thread(_list_batches_sync, limit))

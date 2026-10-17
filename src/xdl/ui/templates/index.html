@@ -61,7 +61,7 @@
         <tr data-job="{{ job.job_id }}">
           <td>#{{ job.job_id }}</td>
           <td>{{ job.started_at | int }}</td>
-          <td>{{ job.counts.ok }} ok · {{ job.counts.skipped }} skip · {{ job.counts.failed }} fail</td>
+          <td>{% if job.counts %}{{ job.counts.ok }} ok · {{ job.counts.skipped }} skip · {{ job.counts.failed }} fail{% else %}{{ job.total }} item(s) · {{ job.origin or 'cli' }}{% endif %}</td>
           <td><span class="chip chip-{{ job.status }}">{{ job.status }}</span></td>
         </tr>
         {% endfor %}

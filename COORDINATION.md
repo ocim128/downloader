@@ -313,3 +313,16 @@ main yet -> marked TODO in `cli.main()` to call `setup_logging(settings)`.
   (gif+video; photo excluded) ok, exit 0; stale-yt-dlp startup warning fired.
 - Remaining backlog lives in docs/05 + both round-2 handoffs (M7 optional;
   ytdlp full mode; --hls-manual; pre-batch free-space check; live Ctrl+C pass).
+
+### 2026-10-17 — launcher + live 500 fix (main)
+- Added `xdl-serve.bat` (repo root): double-click launcher — kills any
+  previous server on :7788 (LISTENING-filtered netstat -> taskkill), starts
+  `.venv` uvicorn via `python -m xdl.ui`, passes extra args (`--no-open`),
+  CRLF, pauses on exit. Verified live: double-start replaces PID cleanly.
+- **Fixed live 500 on `/`**: with non-empty batch history, the index
+  template raised UndefinedError — state rows lacked `started_at`/`counts`
+  (hub shape). `__main__.list_state_batches()` now maps state rows to hub
+  shape (epoch `started_at`, `total`/`inputs`); template + app.js degrade
+  counts-free rows to "N item(s) · origin". Missed by round-2 tests because
+  every test DB had empty history. Regression:
+  `test_state_history_renders_on_index`. Gates: 318 tests / ruff / mypy.

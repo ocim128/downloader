@@ -278,7 +278,9 @@ async function refreshHistory() {
       tr.innerHTML =
         `<td>#${job.job_id}</td>` +
         `<td>${when.toLocaleTimeString()}</td>` +
-        `<td>${job.counts.ok || 0} ok · ${job.counts.skipped || 0} skip · ${job.counts.failed || 0} fail</td>` +
+        `<td>${job.counts
+            ? `${job.counts.ok || 0} ok · ${job.counts.skipped || 0} skip · ${job.counts.failed || 0} fail`
+            : `${job.total ?? job.inputs ?? "?"} item(s) · ${job.origin || "cli"}`}</td>` +
         `<td><span class="chip chip-${job.status}">${job.status}</span></td>`;
       tr.addEventListener("click", () => showDetail(String(job.job_id)));
       rows.appendChild(tr);
