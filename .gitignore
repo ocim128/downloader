@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# App state & output (never commit downloaded media or history)
+downloads/
+*.part
+*.part.meta
+state.db
+state.db-*
+
+# Local env
+.env
