@@ -5,6 +5,8 @@ Uses a fake clock — no real sleeps in the suite.
 
 from __future__ import annotations
 
+import asyncio
+import time
 import types
 from datetime import UTC, datetime, timedelta
 
@@ -94,6 +96,42 @@ def test_default_gap_jitter_range() -> None:
     for _ in range(50):
         t = ThrottleState()
         assert 0.2 <= t.min_gap <= 0.5
+
+
+# --------------------------------------------------------------------------- #
+# Concurrency: the gate must SERIALIZE concurrent callers (real clock — a fake
+# clock advances only when someone sleeps, so it cannot model a burst).
+# --------------------------------------------------------------------------- #
+
+
+async def test_gate_serializes_concurrent_callers() -> None:
+    gap = 0.02
+    t = ThrottleState(min_gap=gap)
+    fired: list[float] = []
+
+    async def worker() -> None:
+        await t.gate()
+        fired.append(time.monotonic())
+
+    start = time.monotonic()
+    await asyncio.gather(*(worker() for _ in range(4)))
+    fired.sort()
+    spread = fired[-1] - fired[0]
+    # 4 callers spaced by `gap` -> the last one fires ~3*gap after the first.
+    # The pre-fix implementation fired 3 of them at the same instant (spread ~gap).
+    assert spread >= 3 * gap * 0.75, f"callers burst instead of queueing: {spread:.3f}s"
+    assert fired[-1] - start < 10 * gap  # and it is still a *short* wait
+
+
+async def test_gate_reserves_slot_under_concurrency(clock: FakeClock) -> None:
+    """Reservations are taken up-front, so a cooldown raised mid-flight still
+    applies to callers that already reserved a slot."""
+    t = ThrottleState(min_gap=0.5)
+    await t.gate()
+    t.report_429("60")
+    await t.gate()  # must absorb the 60 s global pause, not just the min-gap
+    assert clock.waited >= 59.0
+
 
 
 # --------------------------------------------------------------------------- #

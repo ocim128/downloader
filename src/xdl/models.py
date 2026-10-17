@@ -42,6 +42,9 @@ class ErrorCode(StrEnum):
     # conversion run (docs/technical/08 table is additive here).
     FFMPEG_REQUIRED = "FFMPEG_REQUIRED"
     TRANSCODE_FAILED = "TRANSCODE_FAILED"
+    # Containment boundary: a non-XdlError escaped one item's pipeline. Never
+    # retried — it is a bug or an unmapped exception type, not upstream weather.
+    UNEXPECTED = "UNEXPECTED"
 
 
 #: Codes whose XdlError is retryable per-item (docs/technical/08 retry table).
@@ -179,6 +182,8 @@ class MediaOutcome(BaseModel):
     status: Literal["ok", "skipped", "failed"]
     file: Path | None = None
     error: XdlError | None = None  # per-media failure reason
+    attempts: int = 1  # transfer attempts spent (1 = clean first try)
+    elapsed_ms: int = 0  # wall time for this media
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -190,6 +195,7 @@ class ItemResult(BaseModel):
     error: XdlError | None = None  # headline error for display (first failure)
     files: list[Path] = []  # convenience: the ok media files
     detail: str = ""  # human-readable, shown in summary
+    elapsed_ms: int = 0  # wall time for the whole item (resolve + transfer)
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 

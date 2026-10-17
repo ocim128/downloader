@@ -23,6 +23,16 @@ VALID_LAYOUTS = ("by-author", "flat", "by-date")
 CONFIG_FILE_NAME = "config.toml"
 
 
+def app_dir() -> Path:
+    """Per-user app dir (config.toml and state.db live here).
+
+    Windows: %LOCALAPPDATA%/xdl — platformdirs v4 nests author+name by
+    default; appauthor=False keeps it single-level (DECISIONS.md #16).
+    Module-level so loading the config does not need a Settings instance.
+    """
+    return Path(platformdirs.user_config_dir("xdl", appauthor=False))
+
+
 class StorageCfg(BaseModel):
     root: Path = Path("downloads")  # cwd-relative default (spec'd)
     layout: str = DEFAULT_LAYOUT
@@ -81,12 +91,8 @@ class Settings(BaseModel):
 
     @property
     def app_dir(self) -> Path:
-        """Per-user app dir (config.toml and state.db live here).
-
-        Windows: %LOCALAPPDATA%/xdl — platformdirs v4 nests author+name by
-        default; appauthor=False keeps it single-level (DECISIONS.md #16).
-        """
-        return Path(platformdirs.user_config_dir("xdl", appauthor=False))
+        """Per-user app dir (config.toml and state.db live here)."""
+        return app_dir()
 
     @property
     def config_path(self) -> Path:
@@ -103,7 +109,7 @@ def _load_toml(path: Path | None) -> dict[str, Any]:
     """Read config.toml (tolerant of absence); unknown keys are warned, not
     rejected - the file lives in user hands and must stay forward-compatible."""
     if path is None:
-        path = Settings().app_dir / CONFIG_FILE_NAME
+        path = app_dir() / CONFIG_FILE_NAME
     if not path.is_file():
         return {}
     with path.open("rb") as f:

@@ -24,12 +24,25 @@ defined effect on the run.
 | `HLS_REQUIRES_FFMPEG` | hls | no | "best quality is HLS and ffmpeg wasn't found — install: winget install ffmpeg (or use --quality to cap below HLS)" | item failed (or degraded per policy) |
 | `HLS_FAILED` | hls | no | "ffmpeg failed: <stderr tail>" | item failed |
 | `INTEGRITY_MISMATCH` | finalize | yes (once) | "downloaded size ≠ expected; restarting" | one clean restart, then fail |
+| `FFMPEG_REQUIRED` | convert | no | "--audio-only / --gif needs ffmpeg — install: winget install ffmpeg" | item failed |
+| `TRANSCODE_FAILED` | convert | no | "ffmpeg conversion failed: <stderr tail>" | item failed |
 | `DISK_FULL` | download | no | "out of space" | item failed; batch continues |
 | `WRITE_ERROR` | finalize | no | "cannot write <path>: <cause> (name too long? permission?)" | item failed |
+| `UNEXPECTED` | any | no | "UNEXPECTED — <ExceptionType>: <msg>" | containment boundary: a non-`XdlError` escaped one item's pipeline; that item failed, the batch continued |
 | `CANCELLED` | any | — | (not shown; run-level) | exit 130, partials resumable |
 
 `NO_VIDEO` is flagged distinctly in the summary ("7 photo-only") because in mixed batches
 it's expected noise, not breakage.
+
+### Item-level containment
+
+Every *expected* failure is an `XdlError` raised where it happens. `run_batch` additionally
+wraps each item in a boundary: an `XdlError` that still escapes becomes that item's failure,
+and any other `Exception` becomes `UNEXPECTED` (the exception type leads the detail line,
+because that is the part that points at the bug). Either way the batch keeps going and the
+report counts the item as failed — a single malformed post or an unmapped exception type must
+never lose the other 499. `asyncio.CancelledError` is a `BaseException` and is deliberately
+*not* caught, so Ctrl+C still unwinds.
 
 ## Retry & backoff (per item)
 
@@ -46,7 +59,7 @@ they compose with global cooldowns.
 
 | Layer | Mechanism |
 |---|---|
-| Avoidance | resolve pacing 0.2–0.5 s jittered; download concurrency 3; one shared HTTP/2 client |
+| Avoidance | resolve pacing 0.2–0.5 s jittered; download concurrency 3; one shared HTTP client |
 | Detection | 429 on any request → `ThrottleState.report_429(Retry-After)` |
 | Reaction | **all** workers pause until `pause_until` (gate check before every request); the triggering request retries after |
 | Escalation | 3 × 429 within 60 s → `pause_until = now + max(ra × 2, 120s)`, log warning |

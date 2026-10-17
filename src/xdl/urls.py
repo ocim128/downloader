@@ -7,11 +7,16 @@ Host matching is exact-string on the registrable domain — no suffix tricks.
 from __future__ import annotations
 
 import re
+from collections.abc import Awaitable, Callable
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
 
 from xdl.models import ErrorCode, TweetRef, XdlError
+
+#: Awaited before a remote call so the caller's pacing policy covers it
+#: (ThrottleState.gate injected as a callable — this module stays dependency-free).
+GateFn = Callable[[], Awaitable[None]]
 
 #: The one host list every URL form below matches against (mirrors of X count).
 _HOSTS = r"(?:platform\.twitter|fxtwitter|vxtwitter|fixupx|twittpr|x|twitter)\.com"
@@ -131,9 +136,16 @@ async def normalize(
     raw: str,
     *,
     id_mode: bool = False,
+    gate: GateFn | None = None,
 ) -> TweetRef:
-    """Full normalize: t.co expansion (one hop) + parse + validate."""
+    """Full normalize: t.co expansion (one hop) + parse + validate.
+
+    `gate` is awaited before the only network hop (t.co expansion) so the caller's
+    pacing policy covers it; pure parses stay instant and unthrottled.
+    """
     if tco := match_tco(raw):
+        if gate is not None:
+            await gate()
         target = await expand_tco(client, tco)
         return parse(target, id_mode=id_mode)
     return parse(raw, id_mode=id_mode)

@@ -6,6 +6,8 @@ sites; ffmpeg presence is faked via shutil.which.
 
 from __future__ import annotations
 
+import asyncio
+import time
 from pathlib import Path
 from typing import Any
 
@@ -128,8 +130,10 @@ def hls_calls(
         timeout_min: int = 30,
         fetch_text: Any = None,
         frame_cb: Any = None,
+        master_text: str | None = None,
     ) -> Path:
-        calls.append({"master_url": master_url, "dest": dest, "ffmpeg": ffmpeg})
+        calls.append({"master_url": master_url, "dest": dest, "ffmpeg": ffmpeg,
+                      "master_text": master_text})
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(b"remuxed-via-ffmpeg")
         return dest
@@ -220,9 +224,11 @@ async def test_sub720p_mp4_upgrades_when_playlist_genuinely_taller(
         report = await run_batch(request_for(settings), client=client)
 
     assert report.ok == 1
-    assert log["playlists"] == [f"/{ID}/pl/master.m3u8"]  # the decision fetch
+    assert log["playlists"] == [f"/{ID}/pl/master.m3u8"]  # fetched exactly once
     (call,) = hls_calls  # best rendition (1080) beats the 480 mp4
     assert call["master_url"] == f"https://video.twimg.com/{ID}/pl/master.m3u8"
+    # the upgrade probe's fetch is handed to the remux, not repeated
+    assert call["master_text"] == MASTER_1080
     assert log["media_gets"] == []  # mp4 not downloaded
 
 
@@ -440,3 +446,83 @@ async def test_analyze_resolves_without_side_effects(settings: Settings) -> None
         assert state.batches() == []  # no batch row for a resolve-only pass
     finally:
         state.close()
+
+
+async def test_analyze_fans_out_and_preserves_order(settings: Settings) -> None:
+    """`POST /analyze` accepts up to 500 lines — resolution must not be serial."""
+    from xdl.app import analyze
+    from xdl.models import ResolvedTweet
+
+    base, _ = make_world(payload())
+
+    async def slow(request: httpx.Request) -> httpx.Response:
+        await asyncio.sleep(0.05)  # 50 ms per upstream call, a fast day
+        return base(request)
+
+    ids = [str(1000 + i) for i in range(8)]
+    urls = [f"https://x.com/u/status/{tid}" for tid in ids]
+    async with world_client(slow) as client:
+        started = time.perf_counter()
+        results = await analyze(urls, settings, client=client)
+        elapsed = time.perf_counter() - started
+
+    # order is preserved 1:1 with the inputs (the UI zips them back up)
+    assert [r.ref.tweet_id for r in results if isinstance(r, ResolvedTweet)] == ids
+    # 8 x 50 ms serial = 0.40 s; 4-way fan-out = ~0.10 s. Generous slack so the
+    # assertion only fails when the loop is actually serial.
+    assert elapsed < 0.30, f"analyze looks serial: {elapsed:.2f}s for 8 urls"
+
+
+# --------------------------------------------------------------------------- #
+# Item-level containment: no single item may abort the batch
+# --------------------------------------------------------------------------- #
+
+
+async def test_hls_manifest_transport_error_fails_item_not_batch(
+    settings: Settings, fake_ffmpeg: str
+) -> None:
+    """A dead m3u8 host is a per-item NETWORK failure, not a batch crash.
+
+    `fetch_text` calls the shared client directly, so an httpx.ConnectError there
+    is not an XdlError and used to escape every handler on the way up.
+    """
+    tweet = payload(variants=[
+        {"url": f"https://video.twimg.com/{ID}/pl/master.m3u8",
+         "bitrate": None, "content_type": "application/x-mpegURL"},
+    ])
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith(".m3u8"):
+            raise httpx.ConnectError("manifest host unreachable", request=request)
+        return httpx.Response(200, json=tweet)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    async with client:
+        report = await run_batch(request_for(settings), client=client)
+
+    assert report.failed == 1  # the item failed...
+    assert report.exit_code == 2  # ...and the batch still produced a report
+    (result,) = report.results
+    assert result.error is not None
+    assert result.error.code is ErrorCode.NETWORK
+
+
+async def test_unexpected_item_exception_is_contained(
+    settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A bug inside one item's pipeline must not lose the rest of the batch."""
+    async def boom(*args: Any, **kwargs: Any) -> Any:
+        raise RuntimeError("simulated pipeline bug")
+
+    monkeypatch.setattr("xdl.app._prepare_item", boom)
+    handler, _ = make_world(payload())
+    async with world_client(handler) as client:
+        report = await run_batch(
+            BatchRequest(inputs=[URL, f"https://x.com/someuser/status/{ID[:-1]}2"],
+                         settings=settings),
+            client=client,
+        )
+
+    assert len(report.results) == 2  # both items reported, neither raised
+    assert report.failed == 2
+    assert all("RuntimeError" in r.detail for r in report.results)

@@ -85,6 +85,7 @@ class ConsoleReporter:
         table.add_column("id", style="dim")
         table.add_column("author")
         table.add_column("status")
+        table.add_column("time", justify="right", style="dim")
         table.add_column("detail", overflow="fold")
         for i, result in enumerate(report.results, start=1):
             table.add_row(
@@ -92,6 +93,7 @@ class ConsoleReporter:
                 _short_id(result),
                 _author(result),
                 f"[{_STATUS_STYLE.get(result.status, 'white')}]{result.status}[/]",
+                _elapsed(result),
                 result.detail,
             )
         self.console.print(table)
@@ -111,6 +113,14 @@ def _short_id(result: ItemResult) -> str:
 
 def _author(result: ItemResult) -> str:
     return result.ref.screen_name or "?"
+
+
+def _elapsed(result: ItemResult) -> str:
+    """Per-item wall time — the fastest way to spot a slow or throttled item."""
+    ms = result.elapsed_ms
+    if ms <= 0:
+        return "-"
+    return f"{ms / 1000:.1f}s" if ms >= 1000 else f"{ms}ms"
 
 
 def print_no_tty_fallback(report: BatchReport, stream: IO[str] | None = None) -> None:

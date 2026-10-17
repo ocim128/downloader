@@ -7,13 +7,16 @@ dirs.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import httpx
+import pytest
 
 from xdl.app import run_batch
 from xdl.config import Settings
-from xdl.models import BatchRequest
+from xdl.models import BatchRequest, ErrorCode
+from xdl.report.events import EventKind, ProgressEvent
 from xdl.storage.state import StateStore
 
 VIDEO_ID = "1750111111111111111"
@@ -88,14 +91,23 @@ def make_world(
     tco: bool = False,
     fail_media: set[str] | None = None,
     expire_media_once: set[str] | None = None,
+    fail_media_once: set[str] | None = None,
+    media_delay: float = 0.0,
 ) -> tuple[httpx.AsyncClient, dict[str, Any]]:
-    """Build a MockTransport world + a call-log dict."""
+    """Build a MockTransport world + a call-log dict.
+
+    `media_delay` adds latency to media transfers so tests can assert on the
+    pipelining between the resolve and transfer stages. `fail_media_once`
+    answers the first GET with a retryable 500.
+    """
     log: dict[str, Any] = {"media_gets": [], "resolve_calls": 0, "tco_hops": 0}
     fail_media = fail_media or set()
     expire_media_once = expire_media_once or set()
+    fail_media_once = fail_media_once or set()
     expired: set[str] = set()
+    transient: set[str] = set()
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    async def handler(request: httpx.Request) -> httpx.Response:
         host = request.url.host
         if host == "t.co":
             log["tco_hops"] += 1
@@ -115,9 +127,14 @@ def make_world(
         if host == "video.twimg.com":
             url = str(request.url)
             log["media_gets"].append(url)
+            if media_delay:
+                await asyncio.sleep(media_delay)
             name = url.rsplit("/", 1)[1]
             if name in fail_media:
                 return httpx.Response(404)
+            if name in fail_media_once and name not in transient:
+                transient.add(name)
+                return httpx.Response(500)  # retryable upstream blip
             if name in expire_media_once and name not in expired:
                 expired.add(name)
                 return httpx.Response(403)  # signed URL expired mid-flight
@@ -472,3 +489,89 @@ async def test_progress_events_stream(settings: Settings) -> None:
         EventKind.batch_done.value,
     ):
         assert expected in kinds, f"missing {expected} event"
+
+
+# --------------------------------------------------------------------------- #
+# Concurrency model: resolve and transfer are INDEPENDENT pools
+# --------------------------------------------------------------------------- #
+
+
+async def test_transfer_does_not_hold_a_resolve_slot(settings: Settings) -> None:
+    """`resolve_sem` must cover only resolve+select.
+
+    With resolve_concurrency=1 and concurrency=1, item #2 can only start
+    resolving once item #1 releases its resolve slot. If the transfer ran inside
+    that slot (the old nesting), item #2's resolve_start would land after item
+    #1's download_done — i.e. the batch would pipeline nothing.
+    """
+    client, _log = make_world(media_delay=0.15)
+    tuned = settings.model_copy(deep=True)
+    tuned.engine.resolve_concurrency = 1
+    tuned.engine.concurrency = 1
+
+    events: list[ProgressEvent] = []
+    req = request_for(
+        [f"https://x.com/someuser/status/{VIDEO_ID}",
+         f"https://x.com/multiuser/status/{MULTI_ID}"],
+        tuned,
+    )
+    async with client:
+        report = await run_batch(req, client=client, on_event=events.append)
+
+    assert report.ok == 2
+    first_download_done = next(
+        i for i, e in enumerate(events) if e.kind is EventKind.download_done
+    )
+    second_resolve_start = next(
+        i for i, e in enumerate(events)
+        if e.kind is EventKind.resolve_start and e.tweet_id == MULTI_ID
+    )
+    assert second_resolve_start < first_download_done, (
+        "the transfer phase is holding the resolve slot: batch is serialized"
+    )
+
+
+async def test_retry_attempts_and_elapsed_are_reported(
+    settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A transfer that needed two attempts must say so in the report."""
+    async def instant_sleep(seconds: float, cancel: Any = None) -> None:
+        return None
+
+    monkeypatch.setattr("xdl.app._sleep", instant_sleep)
+    client, log = make_world(fail_media_once={f"{VIDEO_ID}_720.mp4"})
+    async with client:
+        report = await run_batch(
+            request_for([f"https://x.com/someuser/status/{VIDEO_ID}"], settings),
+            client=client,
+        )
+
+    assert report.ok == 1
+    (media,) = report.results[0].media
+    assert media.attempts == 2  # one 500, then success
+    assert "(2 attempts)" in report.results[0].detail
+    assert report.results[0].elapsed_ms >= 0
+    assert len(log["media_gets"]) == 2  # both attempts hit the wire
+
+
+async def test_tco_transport_failure_fails_one_item_not_the_batch(
+    settings: Settings,
+) -> None:
+    """A dead t.co hop must be an item-level NETWORK failure, not a crash."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "t.co":
+            raise httpx.ConnectError("proxy refused", request=request)
+        return httpx.Response(200, json=_video_tweet(VIDEO_ID))
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    async with client:
+        report = await run_batch(
+            request_for(["https://t.co/dead", f"https://x.com/someuser/status/{VIDEO_ID}"],
+                        settings),
+            client=client,
+        )
+
+    assert report.results[0].status == "failed"
+    assert report.results[0].error is not None
+    assert report.results[0].error.code is ErrorCode.NETWORK
+    assert report.results[1].status == "ok"  # the rest of the batch survived

@@ -215,15 +215,20 @@ async def download_hls(
     timeout_min: int = 30,
     fetch_text: Callable[[str], Awaitable[str]],
     frame_cb: Callable[[dict[str, str]], None] | None = None,
+    master_text: str | None = None,
 ) -> Path:
     """Parse master -> choose rendition -> DRM gate -> ffmpeg remux -> rename.
+
+    `master_text` lets a caller that already fetched the master (the
+    orchestrator's upgrade probe) hand it in instead of paying a second
+    round-trip for the same bytes.
 
     Same atomic-path invariant as the engine: ffmpeg writes `dest + ".part"`,
     the final rename happens only on a clean exit code.
     """
     ffmpeg_path = require_ffmpeg(ffmpeg)
 
-    master = await fetch_text(master_url)
+    master = master_text if master_text is not None else await fetch_text(master_url)
     rendition = choose_rendition(parse_master(master, master_url), policy)
     child = await fetch_text(rendition.url)
     detect_drm(child)

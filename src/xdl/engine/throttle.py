@@ -30,12 +30,19 @@ class ThrottleState:
         return max(0.0, self._pause_until - time.monotonic())
 
     async def gate(self) -> None:
-        """Await before every remote request: global cooldown + min-gap."""
+        """Await before every remote request: global cooldown + min-gap.
+
+        The slot is RESERVED before awaiting. `_last_request` is advanced to the
+        instant this caller will occupy, so concurrent callers queue behind each
+        other instead of all reading the same stale timestamp, sleeping the same
+        duration and firing in a burst. The read/write pair is atomic because the
+        event loop is single-threaded and no `await` sits between them.
+        """
         now = time.monotonic()
-        wait = max(self._pause_until - now, self._min_gap - (now - self._last_request))
-        if wait > 0:
-            await asyncio.sleep(wait)
-        self._last_request = time.monotonic()
+        slot = max(now, self._pause_until, self._last_request + self._min_gap)
+        self._last_request = slot
+        if (delay := slot - now) > 0:
+            await asyncio.sleep(delay)
 
     def report_429(self, retry_after: str | None) -> None:
         """One 429 pauses everyone: pause_until = now + max(ra, 30s)

@@ -7,7 +7,7 @@ Windows primary platform, one maintainer):
 
 | Criterion | Python 3.12 | Node.js/TS | Go | Rust |
 |---|---|---|---|---|
-| HTTP client w/ HTTP/2, streaming, timeouts | httpx ✅ | undici/got ✅ | stdlib ✅ | reqwest ✅ |
+| HTTP client w/ streaming, timeouts | httpx ✅ | undici/got ✅ | stdlib ✅ | reqwest ✅ |
 | Async I/O ergonomics for a batch pipeline | asyncio ✅ | native ✅ | goroutines ✅ | tokio ✅ |
 | Prototyping speed / refactor cost | highest | high | medium | lowest |
 | CLI ecosystem (args, help, completion) | typer ✅ | commander ✅ | cobra ✅ | clap ✅ |
@@ -39,7 +39,7 @@ base-36 trick).
 
 | Package | Why | Notes |
 |---|---|---|
-| `httpx[http2]` | async HTTP client, streaming bodies, `MockTransport` for tests | the workhorse |
+| `httpx` | async HTTP client, streaming bodies, `MockTransport` for tests | the workhorse (HTTP/2 off: untestable through `MockTransport`) |
 | `pydantic` ≥2 | typed models for remote JSON, `Settings` with TOML loading | remote data is untrusted — parse strictly |
 | `typer` | CLI parsing, help, shell completion | thin wrapper over argparse |
 | `rich` | progress bars, tables, Windows-safe styling | reporter layer only |

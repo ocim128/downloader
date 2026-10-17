@@ -11,10 +11,14 @@ jitter (interruptible); one worker's 429 pauses ALL workers via ThrottleState
 consecutive item failures; Ctrl+C drains gracefully (CancelToken polled at
 item/chunk granularity).
 
-Concurrency model: one item-task per input; items bounded by `resolve_sem`,
-transfers bounded by `download_sem`. Resolves of later items overlap
-transfers of earlier ones — semantics identical to a queue+worker topology
-for bounded fan-out (deviation from the docs' letter noted in DECISIONS.md).
+Concurrency model: one item-task per input. The two bounds are INDEPENDENT
+pools — `resolve_sem` covers only resolve+select (`_prepare_item`), and it is
+released before the transfer phase (`_download_item`), which holds only
+`download_sem`. So resolves of later items overlap transfers of earlier ones
+at full `resolve_concurrency`, and a transfer stalled in a 429 cooldown cannot
+occupy a resolve slot. (Earlier versions nested the download inside the
+resolve slot, which silently collapsed effective resolve parallelism to
+`resolve_concurrency - concurrency`; see DECISIONS.md.)
 """
 
 from __future__ import annotations
@@ -49,6 +53,7 @@ from xdl.models import (
     QualityPolicy,
     ResolvedTweet,
     TweetRef,
+    Variant,
     XdlError,
 )
 from xdl.report.events import EventKind, ProgressEvent
@@ -106,7 +111,7 @@ async def run_batch(
     state = StateStore(settings.db_path)
     try:
         emit(ProgressEvent(EventKind.batch_start, counters={"total": len(req.inputs)}))
-        items = await _normalize_inputs(http, req)
+        items = await _normalize_inputs(http, req, throttle)
         batch_id = state.new_batch(req.origin, total_items=len(items))
 
         ctx = _RunCtx(
@@ -125,7 +130,7 @@ async def run_batch(
         )
         resolve_sem = asyncio.Semaphore(settings.engine.resolve_concurrency)
 
-        async def run_item(item: _Item) -> ItemResult:
+        async def _run_item(item: _Item) -> ItemResult:
             if item.error is not None:
                 return _failed_result(item, item.error)
             if item.duplicate_of is not None:
@@ -144,9 +149,39 @@ async def run_batch(
                     return _cancelled_result(item.ref, item.raw)
                 if ctx.breaker.open:
                     return _circuit_result(ctx, item)
-                result = await _process_item(item, ctx)
+                prepared = await _prepare_item(item, ctx)
+            # The resolve slot is released HERE: transfers hold only
+            # download_sem, so the two bounds are independent pools.
+            if isinstance(prepared, ItemResult):
+                ctx.breaker.record(prepared.status)
+                return prepared
+            result = await _download_item(prepared, ctx)
+            ctx.breaker.record(result.status)
+            return result
+
+        async def run_item(item: _Item) -> ItemResult:
+            """Item-level containment boundary + per-item timing.
+
+            Every *typed* failure is handled closer to its source; anything that
+            still escapes is a bug or an unmapped exception type, and it must cost
+            one item — not the batch. (A raw OSError/httpx error used to unwind
+            through `gather` and take down the whole run.)
+            """
+            started = time.perf_counter()
+            try:
+                result = await _run_item(item)
+            except XdlError as err:
+                result = _failed_result(item, err)
                 ctx.breaker.record(result.status)
-                return result
+            except Exception as err:
+                result = _unexpected_result(item, err)
+                # A crash is a failure as far as upstream health goes.
+                ctx.breaker.record(result.status)
+                ctx.emit(ProgressEvent(EventKind.item_done,
+                                       tweet_id=result.ref.tweet_id,
+                                       status="failed", detail=result.detail))
+            result.elapsed_ms = int((time.perf_counter() - started) * 1000)
+            return result
 
         results = list(await asyncio.gather(*(run_item(i) for i in items)))
         report = _assemble_report(results)
@@ -181,6 +216,10 @@ async def analyze(
 
     One result per input line, in order; normalize/resolve failures come back
     as XdlError values, not exceptions.
+
+    Fanned out over `resolve_concurrency` (this backs `POST /analyze`, which
+    accepts up to 500 lines — serial resolution made that a multi-minute
+    request). `gather` preserves order, so the caller's zip stays 1:1.
     """
     own_client = client is None
     http = client or build_client()
@@ -188,17 +227,23 @@ async def analyze(
     throttle = ThrottleState(
         min_gap=settings.engine.delay if settings.engine.delay > 0 else None
     )
-    try:
-        out: list[ResolvedTweet | XdlError] = []
-        for raw in urls:
+    sem = asyncio.Semaphore(max(1, settings.engine.resolve_concurrency))
+
+    async def one(raw: str) -> ResolvedTweet | XdlError:
+        async with sem:
             try:
+                ref = await normalize_url(http, raw, gate=throttle.gate)
                 await throttle.gate()
-                ref = await normalize_url(http, raw)
-                out.append(await chain.resolve(ref))
+                return await chain.resolve(ref)
             except (XdlError, httpx.HTTPError) as err:
-                out.append(err if isinstance(err, XdlError) else
-                           XdlError(ErrorCode.NETWORK, f"connection failed: {err}"))
-        return out
+                return (
+                    err
+                    if isinstance(err, XdlError)
+                    else XdlError(ErrorCode.NETWORK, f"connection failed: {err}")
+                )
+
+    try:
+        return list(await asyncio.gather(*(one(raw) for raw in urls)))
     finally:
         if own_client:
             await http.aclose()
@@ -279,18 +324,25 @@ async def _with_retries[T](
     throttle: ThrottleState,
     cancel: CancelToken | None = None,
     on_error: Callable[[XdlError], None] | None = None,
+    on_attempt: Callable[[], None] | None = None,
     what: str,
 ) -> T:
     """Retry `op` on retryable XdlErrors: exponential backoff + jitter, waits
     through `throttle.gate()` so global cooldowns compose; at most
     `retries` total attempts. INTEGRITY_MISMATCH restarts clean at most once
     (docs/technical/08); LINK_EXPIRED never retries here — the orchestrator's
-    one-shot re-resolve owns it (layering rule 6)."""
+    one-shot re-resolve owns it (layering rule 6).
+
+    `on_attempt` fires once per attempt (attempt counting for the report);
+    `on_error` fires per retryable failure (429 escalation).
+    """
     attempt = 0
     integrity_restarts = 0
     while True:
         if cancel is not None and cancel.cancelled:
             raise XdlError(ErrorCode.CANCELLED, f"cancelled before {what}")
+        if on_attempt is not None:
+            on_attempt()
         try:
             return await op()
         except XdlError as err:
@@ -344,21 +396,49 @@ class _Item:
         self.duplicate_of = duplicate_of
 
 
-async def _normalize_inputs(http: httpx.AsyncClient, req: BatchRequest) -> list[_Item]:
+async def _normalize_inputs(
+    http: httpx.AsyncClient, req: BatchRequest, throttle: ThrottleState | None = None
+) -> list[_Item]:
+    """Parse + dedupe every input, preserving input order.
+
+    Normalization is mostly pure regex work, so it is fanned out: only t.co
+    expansion touches the network, and that hop is paced via `throttle.gate`.
+    The bound exists for the expanders, not for parsing.
+    """
+    sem = asyncio.Semaphore(max(1, req.settings.engine.resolve_concurrency))
+
+    async def normalize_one(raw: str) -> TweetRef | XdlError:
+        async with sem:
+            try:
+                return await normalize_url(
+                    http,
+                    raw,
+                    id_mode=req.id_mode,
+                    gate=throttle.gate if throttle is not None else None,
+                )
+            except XdlError as err:
+                return err
+            except httpx.HTTPError as err:
+                # A t.co expansion can fail at the transport layer; one bad link
+                # must not abort the whole batch (analyze() has always mapped this).
+                return XdlError(ErrorCode.NETWORK, f"connection failed: {err}")
+
+    outcomes = await asyncio.gather(*(normalize_one(raw) for raw in req.inputs))
+
     items: list[_Item] = []
     seen: dict[str, int] = {}
-    for number, raw in enumerate(req.inputs, start=1):
-        try:
-            ref = await normalize_url(http, raw, id_mode=req.id_mode)
-        except XdlError as err:
-            items.append(_Item(raw, number, error=err))
+    for number, (raw, outcome) in enumerate(
+        zip(req.inputs, outcomes, strict=True), start=1
+    ):
+        if isinstance(outcome, XdlError):
+            items.append(_Item(raw, number, error=outcome))
             continue
-        first = seen.get(ref.tweet_id)
+        first = seen.get(outcome.tweet_id)
         if first is not None:
-            items.append(_Item(raw, number, ref=ref, duplicate_of=first))
+            items.append(_Item(raw, number, ref=outcome, duplicate_of=first))
         else:
-            seen[ref.tweet_id] = number
-            items.append(_Item(raw, number, ref=ref))
+            seen[outcome.tweet_id] = number
+            items.append(_Item(raw, number, ref=outcome))
     return items
 
 
@@ -367,7 +447,27 @@ async def _normalize_inputs(http: httpx.AsyncClient, req: BatchRequest) -> list[
 # --------------------------------------------------------------------------- #
 
 
-async def _process_item(item: _Item, ctx: _RunCtx) -> ItemResult:
+@dataclass
+class _Prepared:
+    """An item that resolved and selected — everything the transfer stage needs.
+
+    Splitting this out of `_process_item` is what lets `resolve_sem` cover only
+    the metadata phase: resolve capacity and transfer capacity are independent
+    pools, so a slow transfer can no longer occupy a resolve slot.
+    """
+
+    item: _Item
+    tweet: ResolvedTweet
+    chosen: list[Chosen]
+    ok_by_index: dict[int, DownloadRow]
+
+
+async def _prepare_item(item: _Item, ctx: _RunCtx) -> _Prepared | ItemResult:
+    """Resolve + select under the caller's resolve slot.
+
+    Returns the prepared item, or a terminal ItemResult (skip / failure /
+    dry-run) that needs no transfer.
+    """
     assert item.ref is not None
     ref = item.ref
     emit = ctx.emit
@@ -377,8 +477,9 @@ async def _process_item(item: _Item, ctx: _RunCtx) -> ItemResult:
     if not ctx.req.force and ctx.state.seen_complete(ref.tweet_id):
         ok_rows = ctx.state.ok_rows(ref.tweet_id)
         if all(Path(r.file_path).is_file() for r in ok_rows):
-            tweet_row = ctx.state.get_tweet(ref.tweet_id)
-            n = tweet_row.media_count if tweet_row else len(ok_rows)
+            # seen_complete() already proved len(ok_rows) == media_count, so no
+            # second trip to the tweets table is needed for the count.
+            n = len(ok_rows)
             result = ItemResult(
                 ref=ref,
                 status="skipped",
@@ -424,21 +525,29 @@ async def _process_item(item: _Item, ctx: _RunCtx) -> ItemResult:
         )
 
     ok_by_index = {r.media_index: r for r in ctx.state.ok_rows(ref.tweet_id)}
+    return _Prepared(item=item, tweet=tweet, chosen=chosen, ok_by_index=ok_by_index)
+
+
+async def _download_item(prepared: _Prepared, ctx: _RunCtx) -> ItemResult:
+    """Transfer every chosen media of a prepared item (outside the resolve slot)."""
+    ref = prepared.tweet.ref
     outcomes: list[MediaOutcome] = []
-    for c in chosen:
-        row = ok_by_index.get(c.asset.index)
+    for c in prepared.chosen:
+        row = prepared.ok_by_index.get(c.asset.index)
         if row is not None and Path(row.file_path).is_file() and not ctx.req.force:
             outcomes.append(MediaOutcome(index=c.asset.index, status="skipped",
                                          file=Path(row.file_path)))
             continue
         async with ctx.download_sem:
-            outcomes.append(await _download_media(tweet, c, ctx))
+            outcomes.append(
+                await _download_media(prepared.tweet, c, ctx, known_row=row)
+            )
         if ctx.cancel is not None and ctx.cancel.cancelled:
             break  # drain: don't start the next media of this item
 
     result = _item_result_from(ref, outcomes)
-    emit(ProgressEvent(EventKind.item_done, tweet_id=ref.tweet_id,
-                       status=result.status, detail=result.detail))
+    ctx.emit(ProgressEvent(EventKind.item_done, tweet_id=ref.tweet_id,
+                           status=result.status, detail=result.detail))
     return result
 
 
@@ -481,7 +590,44 @@ def _render(ctx: _RunCtx, tweet: ResolvedTweet, index: int, ext: str = ".mp4") -
 # --------------------------------------------------------------------------- #
 
 
-async def _download_media(tweet: ResolvedTweet, chosen: Chosen, ctx: _RunCtx) -> MediaOutcome:
+@dataclass
+class _TransferStats:
+    """Per-media instrumentation: attempts spent and wall time (report data)."""
+
+    attempts: int = 0
+    started: float = field(default_factory=time.perf_counter)
+
+    def count_attempt(self) -> None:
+        self.attempts += 1
+
+    @property
+    def elapsed_ms(self) -> int:
+        return int((time.perf_counter() - self.started) * 1000)
+
+
+async def _download_media(
+    tweet: ResolvedTweet,
+    chosen: Chosen,
+    ctx: _RunCtx,
+    *,
+    known_row: DownloadRow | None = None,
+) -> MediaOutcome:
+    """Transfer one media asset, stamping attempts + elapsed time onto the result."""
+    stats = _TransferStats()
+    outcome = await _transfer_media(tweet, chosen, ctx, known_row=known_row, stats=stats)
+    outcome.attempts = max(1, stats.attempts)
+    outcome.elapsed_ms = stats.elapsed_ms
+    return outcome
+
+
+async def _transfer_media(
+    tweet: ResolvedTweet,
+    chosen: Chosen,
+    ctx: _RunCtx,
+    *,
+    known_row: DownloadRow | None = None,
+    stats: _TransferStats,
+) -> MediaOutcome:
     req = ctx.req
     index = chosen.asset.index
     tweet_id = tweet.ref.tweet_id
@@ -501,11 +647,9 @@ async def _download_media(tweet: ResolvedTweet, chosen: Chosen, ctx: _RunCtx) ->
 
     # Determinism contract: reuse the state-anchored path when recorded — but
     # only for the same output kind (an .mp4 row must not anchor an MP3 run).
-    row = next(
-        (r for r in ctx.state.ok_rows(tweet_id)
-         if r.media_index == index and Path(r.file_path).suffix == ext),
-        None,
-    )
+    # `known_row` is the caller's already-fetched ok row for this index; the
+    # download loop holds the full map, so re-querying here would be N+1.
+    row = known_row if known_row is not None and known_row.file_path.suffix == ext else None
     if row is not None and Path(row.file_path).is_file():
         dest = Path(row.file_path)
     else:
@@ -544,7 +688,9 @@ async def _download_media(tweet: ResolvedTweet, chosen: Chosen, ctx: _RunCtx) ->
                                media_index=index, offset=delta, total=total))
 
     try:
-        effective = await _acquire(tweet, chosen, src, ctx, on_progress)
+        effective = await _acquire(
+            tweet, chosen, src, ctx, on_progress, on_attempt=stats.count_attempt
+        )
         if mode is not None and not dest.is_file():
             await _transcode(tweet, index, src, dest, mode, ctx)
             src.unlink(missing_ok=True)  # transient container, artifact is dest
@@ -575,6 +721,7 @@ async def _acquire(
     src: Path,
     ctx: _RunCtx,
     on_progress: Callable[[int, int | None], None] | None = None,
+    on_attempt: Callable[[], None] | None = None,
 ) -> Chosen:
     """Move the chosen variant's container to `src` (fetch or HLS remux).
 
@@ -587,11 +734,12 @@ async def _acquire(
     index = chosen.asset.index
     tweet_id = tweet.ref.tweet_id
     variant = chosen.variant
+    master_text: str | None = None
 
     if not is_hls(variant):
         upgraded = await _maybe_upgrade_to_hls(tweet, chosen, ctx)
         if upgraded is not None:
-            variant = upgraded.variant
+            variant, master_text = upgraded
 
     recovering = False  # LINK_EXPIRED one-shot recovery (rule 6)
     while True:
@@ -604,7 +752,8 @@ async def _acquire(
                     "cap below HLS)",
                 )
             if not src.is_file():
-                await _acquire_hls(variant.url, src, ctx, tweet_id, index)
+                await _acquire_hls(variant.url, src, ctx, tweet_id, index,
+                                   master_text=master_text)
             return Chosen(asset=chosen.asset, variant=variant)
 
         if src.is_file():
@@ -620,6 +769,7 @@ async def _acquire(
                 retries=ctx.settings.engine.retries,
                 throttle=ctx.throttle,
                 cancel=ctx.cancel,
+                on_attempt=on_attempt,
                 what=f"download {tweet_id}/{index}",
             )
             return Chosen(asset=chosen.asset, variant=variant)
@@ -658,12 +808,15 @@ async def _re_resolve_media(ctx: _RunCtx, tweet: ResolvedTweet, index: int) -> C
 
 async def _maybe_upgrade_to_hls(
     tweet: ResolvedTweet, chosen: Chosen, ctx: _RunCtx
-) -> Chosen | None:
+) -> tuple[Variant, str] | None:
     """Field-correct HLS policy (docs/technical/04 banner): the MP4 fast-path
     always wins; consider HLS only when the best MP4 is sub-720p AND ffmpeg is
     available AND the asset carries an m3u8 — then fetch the master and take
     HLS only if its best rendition is genuinely taller (RESOLUTION compare;
     payloads publish no HLS bitrate). Best-effort: any failure keeps the MP4.
+
+    Returns the m3u8 variant plus the master text already fetched, so the remux
+    does not re-request the same playlist.
     """
     height = chosen.variant.height
     if ctx.ffmpeg is None or height is None or height >= 720:
@@ -680,12 +833,18 @@ async def _maybe_upgrade_to_hls(
     except (XdlError, httpx.HTTPError):
         return None
     if (best.height or 0) > height:
-        return Chosen(asset=chosen.asset, variant=m3u8)
+        return m3u8, r.text
     return None
 
 
 async def _acquire_hls(
-    master_url: str, src: Path, ctx: _RunCtx, tweet_id: str, index: int
+    master_url: str,
+    src: Path,
+    ctx: _RunCtx,
+    tweet_id: str,
+    index: int,
+    *,
+    master_text: str | None = None,
 ) -> None:
     """Fetch manifests through the shared client/pacing, remux via ffmpeg
     (media/hls owns the parse/DRM-gate/.part invariant)."""
@@ -694,7 +853,12 @@ async def _acquire_hls(
         await ctx.throttle.gate()
         if ctx.cancel is not None and ctx.cancel.cancelled:
             raise XdlError(ErrorCode.CANCELLED, "cancelled before m3u8 fetch")
-        r = await ctx.http.get(url)
+        try:
+            r = await ctx.http.get(url)
+        except httpx.HTTPError as err:
+            # This is a direct client call, not the engine: without the mapping a
+            # transport error escapes every XdlError handler up to the batch.
+            raise XdlError(ErrorCode.NETWORK, f"m3u8 fetch failed: {err}") from err
         if r.status_code == 429:
             ctx.throttle.report_429(r.headers.get("retry-after"))
             raise XdlError(
@@ -720,6 +884,7 @@ async def _acquire_hls(
         timeout_min=ctx.settings.hls.ffmpeg_timeout_min,
         fetch_text=fetch_text,
         frame_cb=frame_cb,
+        master_text=master_text,
     )
 
 
@@ -834,6 +999,12 @@ def _item_result_from(ref: TweetRef, outcomes: list[MediaOutcome]) -> ItemResult
         status = "ok"
         detail = f"{len(ok)} media file(s) downloaded"
 
+    # Retries are otherwise invisible: a clean transfer and one that needed
+    # three attempts produced byte-identical reports before this.
+    retried = max((o.attempts for o in outcomes), default=1)
+    if retried > 1:
+        detail += f" ({retried} attempts)"
+
     return ItemResult(
         ref=ref,
         status=status,
@@ -848,6 +1019,22 @@ def _failed_result(item: _Item, err: XdlError) -> ItemResult:
     ref = item.ref or _anon_ref(item.raw)
     detail = f"{err.code} — {err.detail}" if err.detail else err.code
     return ItemResult(ref=ref, status="failed", error=err, detail=detail)
+
+
+def _unexpected_result(item: _Item, err: Exception) -> ItemResult:
+    """Containment boundary for anything that is not an XdlError.
+
+    The exception *type* is the actionable part (it points at the line that
+    raised), so it leads the detail line; the message follows.
+    """
+    ref = item.ref or _anon_ref(item.raw)
+    detail = f"UNEXPECTED — {type(err).__name__}: {err}"
+    return ItemResult(
+        ref=ref,
+        status="failed",
+        error=XdlError(ErrorCode.UNEXPECTED, detail),
+        detail=detail,
+    )
 
 
 def _cancelled_result(ref: TweetRef | None, raw: str) -> ItemResult:

@@ -64,10 +64,12 @@ Key properties:
 
 ## Concurrency
 
-- One item-task per input; the orchestrator bounds it with two semaphores:
-  `resolve_sem` (default 4) for metadata lookups, `download_sem` (default 3) for
-  transfers. Resolves of later items overlap transfers of earlier ones, so a slow
-  500 MB file never delays resolving the next URL.
+- One item-task per input; the orchestrator bounds it with two **independent**
+  semaphores: `resolve_sem` (default 4) for resolve+select, `download_sem`
+  (default 3) for transfers. The resolve slot is released before the transfer phase
+  starts, so resolves of later items overlap transfers of earlier ones at full
+  `resolve_concurrency` — a slow 500 MB file never delays resolving the next URL,
+  and a transfer parked in a 429 cooldown holds no resolve capacity (DECISIONS.md #23).
 - Total in-flight HTTP requests bounded by `download_sem + resolve_sem` — a hard
   ceiling keeps failure domains small and rate limits predictable.
 - ffmpeg subprocesses (HLS remux, MP3/GIF conversion) are not network-bound; they run
@@ -77,7 +79,7 @@ Key properties:
 
 ```python
 client = httpx.AsyncClient(
-    http2=True,
+    http2=False,                     # MockTransport parity; flip at integration tuning
     timeout=httpx.Timeout(connect=10, read=60, write=30, pool=15),
     limits=httpx.Limits(max_connections=8, max_keepalive_connections=6),
     follow_redirects=False,          # CDN URLs are final; redirects = smell
@@ -89,7 +91,8 @@ client = httpx.AsyncClient(
   something changed upstream — surface it (`UPSTREAM_ERROR`) rather than silently
   following to an unknown host. (The `t.co` expander is the only sanctioned redirect
   follower, and it's one-hop.)
-- HTTP/2 on: one connection multiplexes the 3 concurrent files nicely.
+- HTTP/2 is off (and `httpx[http2]` is no longer a dependency): it cannot be exercised
+  through `MockTransport`, so enabling it would ship an untested code path.
 
 ## Retry policy
 
@@ -109,8 +112,12 @@ global cooldown absorbs individual backoffs naturally.
 ## Throttling & pacing (`engine/throttle.py`)
 
 - `ThrottleState` holds: `pause_until: float`, `min_gap: float`, `last_request: float`.
-- `gate()` before every remote request (resolve **and** download):
-  `await sleep(max(0, pause_until - now, min_gap - since_last))`.
+- `gate()` before every remote request (resolve **and** download) reserves a slot and
+  then waits for it: `slot = max(now, pause_until, last_request + min_gap)`,
+  `last_request = slot`, `await sleep(slot - now)`. The reservation happens *before*
+  the await on purpose — reading `last_request`, sleeping and then writing it lets
+  every concurrent caller read the same stale timestamp, sleep the same duration and
+  burst, which defeats the pacer exactly when it matters (DECISIONS.md #24).
 - Resolve pacing: `min_gap` jittered at startup to 0.2–0.5 s (avoids thundering
   resolve bursts on 100-URL batches).
 - `report_429(ra)` sets `pause_until = now + max(ra, 30)` globally — one worker's 429

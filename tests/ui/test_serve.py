@@ -379,6 +379,22 @@ def test_stub_sse_exact_tick_order(stub_client: TestClient) -> None:
     assert seqs == sorted(set(seqs))
 
 
+def test_stub_sse_closes_immediately_for_finished_job(stub_client: TestClient) -> None:
+    # Regression: attaching to an ALREADY-finished job used to replay the backlog
+    # and then block on an empty queue for the full 15 s ping timeout.
+    resp = stub_client.post("/jobs", json={"urls": "https://x.com/u/status/51"})
+    job_id = resp.json()["job_id"]
+    _wait_done(stub_client, job_id)  # job is done before we subscribe
+
+    started = time.monotonic()
+    with stub_client.stream("GET", f"/jobs/{job_id}/events") as stream:
+        body = "".join(stream.iter_text())
+    elapsed = time.monotonic() - started
+
+    assert "batch_done" in body  # the backlog was still delivered
+    assert elapsed < 5.0, f"stream idled for {elapsed:.1f}s on a finished job"
+
+
 def test_stub_mid_batch_crash_marks_job_failed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -530,3 +546,37 @@ async def test_absolute_form_request_reaches_the_router(tmp_path: Path) -> None:
     assert messages[0]["type"] == "http.response.start"
     assert messages[0]["status"] == 200
 
+
+# =========================================================================== #
+# Section 3 — job hub retention (a long-lived server must not grow unbounded)
+# =========================================================================== #
+
+
+def test_progress_backlog_is_bounded_and_counters_stay_exact() -> None:
+    from xdl.report.events import EventKind, ProgressEvent
+    from xdl.ui.app import _MAX_PROGRESS_REPLAY, _counts, _Job
+
+    job = _Job(id="1", inputs=["a"], quality=None, output=None, concurrency=None)
+    for i in range(_MAX_PROGRESS_REPLAY * 5):
+        job.emit(ProgressEvent(EventKind.download_progress, tweet_id="1",
+                               media_index=1, offset=i))
+    job.emit(ProgressEvent(EventKind.item_done, tweet_id="1", status="ok"))
+
+    assert len(job.progress) == _MAX_PROGRESS_REPLAY  # ring buffer, not a list
+    assert len(job.events) == 1  # lifecycle kept in full
+    backlog = job.replay()
+    assert len(backlog) == _MAX_PROGRESS_REPLAY + 1
+    assert backlog[-1]["kind"] == "item_done"  # chronological, lifecycle last
+    assert _counts(job)["ok"] == 1  # O(1) tally matches the events
+
+
+def test_hub_evicts_oldest_finished_jobs() -> None:
+    from xdl.ui.app import _MAX_JOBS, _Hub, _Job
+
+    hub = _Hub()
+    for _ in range(_MAX_JOBS + 10):
+        job = hub.create(_Job(id="", inputs=[], quality=None, output=None,
+                              concurrency=None))
+        hub.finish(job)
+    assert len(hub.jobs) == _MAX_JOBS
+    assert len(hub.order) == _MAX_JOBS

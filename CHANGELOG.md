@@ -14,6 +14,74 @@ Private, local batch downloader for X (Twitter) video posts. Dates are
   absolute-form targets before routing; foreign authorities are left untouched and
   still hit the Host guard. Found via `scripts/ui_smoke.py` on a machine with
   `HTTP_PROXY` set. Regression tests: 5 in `tests/ui/test_serve.py`.
+- **Request pacing did nothing under concurrency.** `ThrottleState.gate()` read
+  `_last_request`, awaited, then wrote it — so every waiter read the same stale
+  timestamp, slept the same duration and fired in a burst (measured: 3 of 4
+  concurrent callers fired in the same millisecond). With `resolve_concurrency=4`
+  and `concurrency=3` that was the default path, leaving only the absolute 429
+  cooldown effective. The slot is now reserved *before* the await. New regression
+  test asserts the calls actually space out.
+- **SSE streams idled 15 s on an already-finished job.** The backlog was replayed
+  and then the handler blocked on an empty queue until the ping timeout, so opening
+  a completed job (or any test that POSTs then connects) waited the full 15 s. Now
+  closes right after the replay. This alone took the suite from **30.8 s → 13 s**
+  (`test_stub_sse_exact_tick_order` was 15.02 s = 48% of the run).
+- **`analyze()` and `_normalize_inputs()` resolved strictly serially.** `POST /analyze`
+  accepts up to 500 lines, so a large paste held one HTTP request open for minutes
+  (measured: 1.21 s for 20 URLs at 50 ms/request — perfectly linear). Both now fan
+  out over `resolve_concurrency`; `gather` keeps the 1:1 input ordering.
+- **t.co expansion was the one unpaced request path.** `_normalize_inputs` called
+  `normalize_url` without consulting the throttle. `normalize()` now takes a `gate`
+  callable and awaits it around the only network hop.
+- **The transfer stage held a resolve slot.** `resolve_sem` wrapped the whole item,
+  including downloads, so effective resolve parallelism collapsed to
+  `resolve_concurrency - concurrency` (1 with defaults) and a transfer stalled in a
+  429 cooldown blocked every pending resolve. `_prepare_item` (resolve+select) and
+  `_download_item` (transfer) now hold only their own semaphore. Verified by a test
+  that fails under the old nesting.
+- **`ok_rows()` was re-queried per media file** although the caller had already built
+  the index map (4 redundant queries on a 4-video post); `seen_complete()` cost two
+  statements and a third for the count. Now one statement, and the row is threaded
+  through.
+- **Retries were invisible.** A clean transfer and one that needed three attempts
+  produced identical reports. `_with_retries` gained `on_attempt`; `MediaOutcome`
+  gained `attempts`/`elapsed_ms` and `ItemResult` gained `elapsed_ms`. The summary
+  table shows per-item time, and `detail` appends `(N attempts)` when N > 1.
+- **One bad item could abort the whole batch.** Two ways a non-`XdlError` escaped an
+  item and unwound through `asyncio.gather`:
+  1. `_acquire_hls.fetch_text` calls the shared client directly; an `httpx` transport
+     error while fetching an m3u8 escaped every `XdlError` handler and killed the run.
+     Now mapped to `NETWORK`.
+  2. Any *unmapped* exception type (a bug, an unexpected `OSError`) did the same.
+     `run_batch` now wraps each item in a containment boundary: escaping `XdlError`s
+     become that item's failure, anything else becomes `UNEXPECTED` (exception type in
+     the detail), the breaker records it, and the batch continues.
+  Regression tests: `test_hls_manifest_transport_error_fails_item_not_batch`,
+  `test_unexpected_item_exception_is_contained`.
+- **HLS master playlist was fetched twice** per upgraded item (once by the upgrade
+  probe, again by the remux). `download_hls(master_text=...)` reuses the probe's
+  fetch.
+
+### Changed
+
+- **SQLite runs `synchronous=NORMAL`** (was the `FULL` default): ~1.05 ms → ~0.02 ms
+  per commit, measured, and every write happens on the event-loop thread. Safe under
+  WAL — a crash can lose the last transaction but never corrupts; the idempotent
+  replay path already covers a missing state row. `busy_timeout` is now explicit.
+- **Web-UI job retention is bounded.** Progress ticks live in a 200-entry ring
+  buffer instead of the replay backlog (a 500-item batch buffered 41k events / 6.8 MB
+  and replayed all of it on every reconnect), item counters are maintained
+  incrementally, and the hub keeps the last 50 finished jobs.
+- **Batch tasks keep a strong reference** (`_Hub.spawn`) instead of a bare
+  `create_task` with `# noqa: RUF006`.
+- **`pytest` is hermetic by default**: `addopts = "-m 'not live'"`. A bare `pytest`
+  no longer hits `cdn.syndication.twimg.com`; `pytest -m live` opts in.
+- **CI added** (`.github/workflows/ci.yml`): ruff + mypy on Linux, pytest on
+  Linux **and Windows**, nightly live-endpoint job (non-blocking).
+- `httpx[http2]` → `httpx`: the `h2` extra was installed while `build_client()`
+  hard-codes `http2=False`.
+- `Settings.app_dir` moved to a module-level `config.app_dir()` so loading
+  `config.toml` no longer constructs a `Settings` model first.
 
 ### Removed (complexity audit, round 3)
 

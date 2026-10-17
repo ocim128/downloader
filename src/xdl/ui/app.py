@@ -18,12 +18,14 @@ Security posture (spec):
 from __future__ import annotations
 
 import asyncio
+import heapq
 import json as _json
 import re
 import subprocess
 import sys
 import time
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections import deque
+from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine
 from dataclasses import asdict, dataclass, field
 from itertools import count
 from pathlib import Path
@@ -116,6 +118,16 @@ def _normalize_absolute_target(scope: dict[str, Any]) -> None:
 # Job hub (in-memory; this is a one-page personal tool)
 # --------------------------------------------------------------------------- #
 
+#: Recent progress ticks kept for replay. Lifecycle events are always kept (they
+#: are bounded by the item count); progress ticks arrive once per 64 KiB and are
+#: worthless once superseded, so retaining every one turned a 500-item batch into
+#: a 41k-event / 6.8 MB replay on every reconnect. Only the tail is kept.
+_MAX_PROGRESS_REPLAY = 200
+
+#: Finished jobs kept in memory (the state store is the durable history).
+_MAX_JOBS = 50
+
+
 @dataclass
 class _Job:
     id: str
@@ -125,20 +137,43 @@ class _Job:
     concurrency: int | None
     started: float = field(default_factory=time.time)
     status: str = "running"  # running | ok | partial | failed
-    events: list[dict[str, Any]] = field(default_factory=list)
+    events: list[dict[str, Any]] = field(default_factory=list)  # lifecycle only
+    progress: deque[dict[str, Any]] = field(
+        default_factory=lambda: deque(maxlen=_MAX_PROGRESS_REPLAY)
+    )
     subscribers: list[asyncio.Queue[tuple[int, dict[str, Any]]]] = field(default_factory=list)
     report: BatchReport | None = None
     error: str = ""
     done: bool = False
+    counts: dict[str, int] = field(default_factory=dict)  # item_done tallies, O(1)
+    last_seq: int = 0
     _seq: count[int] = field(default_factory=lambda: count(start=1), repr=False)
 
     def emit(self, event: ProgressEvent) -> None:
         payload = asdict(event)
         payload["kind"] = event.kind.value
         payload["seq"] = next(self._seq)
-        self.events.append(payload)
+        self.last_seq = payload["seq"]
+        if event.kind is EventKind.download_progress:
+            self.progress.append(payload)  # ring buffer
+        else:
+            self.events.append(payload)
+        if event.kind is EventKind.item_done:
+            status = payload.get("status")
+            if isinstance(status, str):
+                self.counts[status] = self.counts.get(status, 0) + 1
         for queue in self.subscribers:
             queue.put_nowait((payload["seq"], payload))
+
+    def replay(self) -> list[dict[str, Any]]:
+        """Chronological backlog: every lifecycle event + the recent progress tail."""
+        return list(heapq.merge(self.events, self.progress, key=lambda e: e["seq"]))
+
+    @property
+    def finished(self) -> bool:
+        return self.done and any(
+            e["kind"] == EventKind.batch_done.value for e in self.events
+        )
 
 
 class _Hub:
@@ -149,13 +184,34 @@ class _Hub:
         self.order: list[str] = []
         self.running_id: str | None = None
         self._ids = count(start=1)
+        self._tasks: set[asyncio.Task[None]] = set()
+
+    def spawn(self, coro: Coroutine[Any, Any, None]) -> None:
+        """Start a batch task and keep a strong reference to it.
+
+        The loop only holds a weak reference, so a bare `create_task` can be
+        garbage-collected mid-flight (RUF006) and its failure silently dropped.
+        """
+        task = asyncio.create_task(coro)
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
 
     def create(self, job: _Job) -> _Job:
         job.id = str(next(self._ids))
         self.jobs[job.id] = job
         self.order.append(job.id)
         self.running_id = job.id
+        self._evict()
         return job
+
+    def _evict(self, keep: int = _MAX_JOBS) -> None:
+        """Drop the oldest FINISHED jobs beyond `keep` — a long-lived server must
+        not grow without bound. The in-flight job is always the newest."""
+        while len(self.order) > keep:
+            oldest = self.jobs.get(self.order[0])
+            if oldest is not None and not oldest.done:
+                break
+            self.jobs.pop(self.order.pop(0), None)
 
     def finish(self, job: _Job) -> None:
         if self.running_id == job.id:
@@ -197,15 +253,12 @@ def _counts(job: _Job) -> dict[str, int]:
     counts = {
         "total": len(job.inputs), "ok": 0, "skipped": 0, "partial": 0, "failed": 0,
     }
-    if job.report is None:
-        for event in job.events:
-            status = event.get("status")
-            if event["kind"] == EventKind.item_done.value and status in counts:
-                counts[status] += 1
+    if job.report is not None:
+        report = job.report
+        counts["ok"], counts["skipped"] = report.ok, report.skipped
+        counts["partial"], counts["failed"] = report.partial, report.failed
         return counts
-    report = job.report
-    counts["ok"], counts["skipped"] = report.ok, report.skipped
-    counts["partial"], counts["failed"] = report.partial, report.failed
+    counts.update(job.counts)  # maintained incrementally in _Job.emit -> O(1)
     return counts
 
 
@@ -331,7 +384,7 @@ def create_app(
             inputs=urls, settings=req_settings, origin="web",
             quality=quality, audio_only=audio_only,
         )
-        asyncio.create_task(_run(hub, run_batch, req, job))  # noqa: RUF006
+        hub.spawn(_run(hub, run_batch, req, job))
         return JSONResponse(
             {"job_id": job.id, "accepted": len(urls), "duplicates": dupes},
             status_code=202,
@@ -363,12 +416,19 @@ def create_app(
             # Register FIRST, snapshot backlog synchronously: every event is
             # delivered exactly once (backlog has seq <= base, queue > base).
             job.subscribers.append(queue)
-            backlog = list(job.events)
-            base_seq = int(backlog[-1]["seq"]) if backlog else 0
+            backlog = job.replay()
+            # Everything emitted so far has seq <= last_seq; anything queued for
+            # us afterwards has a strictly greater seq. (Using the last *buffered*
+            # seq would be wrong now that the progress tail can be evicted.)
+            base_seq = job.last_seq
             for payload in backlog:
                 if await request.is_disconnected():
                     return
                 yield _sse(payload)
+            if job.finished:
+                # Attaching to an already-finished job: replay then close. Waiting
+                # on an empty queue here would idle for the full ping timeout.
+                return
             while True:
                 if await request.is_disconnected():
                     return
@@ -417,7 +477,7 @@ def create_app(
             _Job(id="", inputs=failed, quality=job.quality, output=job.output,
                  concurrency=job.concurrency)
         )
-        asyncio.create_task(_run(hub, run_batch, req, retry_job_view))  # noqa: RUF006
+        hub.spawn(_run(hub, run_batch, req, retry_job_view))
         return JSONResponse(
             {"job_id": retry_job_view.id, "retried": len(failed)}, status_code=202
         )

@@ -88,6 +88,41 @@ Where this file and `docs/` disagree, this file and the code win.
     the target when the authority is loopback, and leaves anything else to the
     Host guard. Do not remove it to "simplify" the middleware stack.
 
+## Concurrency & storage
+
+23. **`resolve_sem` covers resolve+select only; transfers hold `download_sem`.**
+    The two bounds are independent pools. Nesting the transfer inside the
+    resolve slot (the original shape) silently collapsed effective resolve
+    parallelism to `resolve_concurrency - concurrency` — 1 with the defaults —
+    and let a transfer stalled in a 429 cooldown occupy a resolve slot. Do not
+    re-merge `_prepare_item` and `_download_item`; `tests/integration/
+    test_pipeline.py::test_transfer_does_not_hold_a_resolve_slot` fails if you
+    do.
+24. **`ThrottleState.gate()` reserves its slot before awaiting.** The read and
+    write of `_last_request` must stay in one un-interleaved span (no `await`
+    between them) or concurrent callers all read the same timestamp, sleep the
+    same amount and burst — which is what the pacer exists to prevent.
+25. **SQLite runs `synchronous=NORMAL`, not `FULL`.** ~50x cheaper per commit
+    (1.05 ms → 0.02 ms measured) and every write is on the event-loop thread.
+    Under WAL this can lose the last transaction on a crash but cannot corrupt
+    the database; the idempotent-replay path (file present, no state row →
+    re-finalize without re-downloading) makes that loss free. Do not "harden"
+    this back to `FULL` without measuring.
+26. **The UI buffers lifecycle events in full and progress ticks in a ring.**
+    Replay must reconstruct per-item state (so every `resolve_*`/`download_*`/
+    `item_done` is kept) but a 64 KiB-granularity tick stream is worthless once
+    superseded (a 500-item batch buffered 41k events / 6.8 MB). `last_seq`, not
+    the last buffered seq, is the replay boundary — the progress tail can be
+    evicted, so the two differ.
+27. **Failures are contained at the ITEM boundary, never at the batch.** Expected
+    failures are `XdlError`s raised where they happen; `run_batch` additionally
+    wraps each item so an escaping `XdlError` becomes that item's failure and any
+    other `Exception` becomes `UNEXPECTED`. Rationale: a batch of 500 URLs must not
+    be lost to one malformed post or one unmapped exception type — and a batch
+    downloader has no retry-from-scratch story, so a crash is total data loss for
+    that run. `CancelledError`/`KeyboardInterrupt` are `BaseException` and stay
+    uncaught on purpose. Do not "simplify" this away to a bare `gather`.
+
 ## Deliberately not built
 
 - yt-dlp-driven downloads (`ytdlp_mode = "full"`).
@@ -99,4 +134,6 @@ Where this file and `docs/` disagree, this file and the code win.
 - A logging subsystem: `report/logging.py`, `LogCfg`, and `-v/-vv` were
   deleted because no module ever emitted a log record. Re-add it only
   together with real call sites (429, retry give-up, `.part` resume, breaker
-  open).
+  open). Note that retry visibility is *not* a reason to re-add it: attempts
+  and wall time now ride on `MediaOutcome.attempts` / `elapsed_ms` and
+  `ItemResult.elapsed_ms`, which both frontends already consume.
