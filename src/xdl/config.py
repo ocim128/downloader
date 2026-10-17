@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import tomllib
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +18,9 @@ from pydantic import BaseModel, Field
 
 DEFAULT_LAYOUT = "by-author"
 VALID_LAYOUTS = ("by-author", "flat", "by-date")
+
+#: config.toml default location (per-platform; single-level app dir)
+CONFIG_FILE_NAME = "config.toml"
 
 
 class StorageCfg(BaseModel):
@@ -48,6 +52,8 @@ class HlsCfg(BaseModel):
 class LogCfg(BaseModel):
     file: bool = True
     level: str = "info"
+    console_level: str | None = None  # -v/-vv override; None = follow `level`
+    dir: Path | None = None  # None -> <app_dir>/logs (mirrors StorageCfg.db_path)
 
 
 class Settings(BaseModel):
@@ -65,12 +71,17 @@ class Settings(BaseModel):
         config_path: Path | None = None,
         read_env: bool = True,
     ) -> Settings:
-        """Merge defaults <- TOML <- env <- overrides into one Settings."""
+        """Merge defaults <- TOML <- env <- overrides into one Settings.
+
+        A missing config.toml is fine; unknown keys in file/env produce a
+        warning (never a crash - a stale template must not brick the CLI).
+        """
         merged: dict[str, Any] = {}
-        if read_env or config_path:
-            _deep_merge(merged, _load_toml(config_path))
+        toml = _load_toml(config_path)
+        _deep_merge(merged, _prune_unknown("config.toml", toml)[0])
         if read_env:
-            _deep_merge(merged, _load_env())
+            env = _load_env()
+            _deep_merge(merged, _prune_unknown("env", env)[0])
         if overrides:
             _deep_merge(merged, _nested(overrides))
         settings = cls(**merged)
@@ -90,6 +101,10 @@ class Settings(BaseModel):
         return Path(platformdirs.user_config_dir("xdl", appauthor=False))
 
     @property
+    def config_path(self) -> Path:
+        return self.app_dir / CONFIG_FILE_NAME
+
+    @property
     def db_path(self) -> Path:
         if self.storage.db_path is not None:
             return self.storage.db_path
@@ -97,28 +112,82 @@ class Settings(BaseModel):
 
 
 def _load_toml(path: Path | None) -> dict[str, Any]:
+    """Read config.toml (tolerant of absence); unknown keys are warned, not
+    rejected - the file lives in user hands and must stay forward-compatible."""
     if path is None:
-        path = Settings().app_dir / "config.toml"
+        path = Settings().app_dir / CONFIG_FILE_NAME
     if not path.is_file():
         return {}
     with path.open("rb") as f:
         return tomllib.load(f)
 
 
+#: doc'd convenience names beyond the mechanical XDL_<SECTION>__<FIELD> map
+# (XDL_OUTPUT is special-cased to a Path below)
+_ENV_ALIASES = {
+    "XDL_CONCURRENCY": ("engine", "concurrency"),
+    "XDL_RESOLVE_CONCURRENCY": ("engine", "resolve_concurrency"),
+    "XDL_FALLBACK": ("resolver", "fallback"),
+    "XDL_LOG_LEVEL": ("log", "level"),
+}
+
+
 def _load_env() -> dict[str, Any]:
-    """XDL_<SECTION>__<FIELD> env vars -> nested dict (XDL_OUTPUT special-cased)."""
+    """XDL_<SECTION>__<FIELD> env vars -> nested dict; XDL_OUTPUT and the
+    other documented conveniences map mechanically too (docs/technical/07)."""
     out: dict[str, Any] = {}
     for key, value in os.environ.items():
-        if not key.startswith("XDL_") or key == "XDL_OUTPUT":
+        if not key.startswith("XDL_") or not value.strip():
             continue
-        parts = key[4:].lower().split("__")
-        if len(parts) != 2:
-            continue
-        section, field = parts
+        if key in _ENV_ALIASES:
+            section, field = _ENV_ALIASES[key]
+        else:
+            parts = key[4:].lower().split("__")
+            if len(parts) != 2:
+                continue
+            section, field = parts
         out.setdefault(section, {})[field] = _coerce(value)
-    if output := os.environ.get("XDL_OUTPUT"):
-        out.setdefault("storage", {})["root"] = Path(output)
+    if raw := os.environ.get("XDL_OUTPUT"):
+        out.setdefault("storage", {})["root"] = Path(raw)
     return out
+
+
+def _prune_unknown(
+    source: str, data: dict[str, Any]
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Drop keys that do not exist on Settings (2 levels deep), warning once
+    per key. Returns (clean_data, dropped) so a stale template or stray env
+    var warns instead of bricking the CLI."""
+    clean: dict[str, Any] = {}
+    dropped: dict[str, Any] = {}
+    sections = Settings.model_fields
+    for section, value in data.items():
+        if section not in sections:
+            dropped[section] = dict(value) if isinstance(value, dict) else value
+            warnings.warn(
+                f"unknown config section '{section}' (source: {source})",
+                UserWarning,
+                stacklevel=3,
+            )
+            continue
+        submodel = sections[section].annotation
+        fields = getattr(submodel, "model_fields", None)
+        if not isinstance(fields, dict) or not isinstance(value, dict):
+            clean[section] = value
+            continue
+        keep: dict[str, Any] = {}
+        for field, field_value in value.items():
+            if field in fields:
+                keep[field] = field_value
+                continue
+            dropped.setdefault(section, {})[field] = field_value
+            warnings.warn(
+                f"unknown config key '{section}.{field}' (source: {source})",
+                UserWarning,
+                stacklevel=3,
+            )
+        clean[section] = keep
+    return clean, dropped
 
 
 def _coerce(raw: str) -> Any:
