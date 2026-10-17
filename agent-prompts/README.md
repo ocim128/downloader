@@ -43,3 +43,12 @@ ownership line; check `COORDINATION.md` for the recorded reason.
   call in `cli.main()`.
 - `Settings.load(overrides)` signature — B may rework internals; the signature is
   frozen for A's CLI.
+
+## Single-lane task prompts (one agent, no parallelism needed)
+
+| Task | Prompt | Branch |
+|---|---|---|
+| Output files named exactly by tweet ID (`2111083867478368447.mp4`) | [naming-by-id.md](naming-by-id.md) | `feat/naming-by-id` |
+
+These are small owner-requested changes: one agent works straight off `main`,
+pushes a branch, owner merges.
