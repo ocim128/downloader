@@ -260,7 +260,12 @@ async def test_download_hls_failure_tail(
     dest = tmp_path / "v.mp4"
     fetch = StubFetch(_read("master_multi.m3u8"), _read("child_plain.m3u8"))
     with pytest.raises(XdlError) as excinfo:
-        await hls.download_hls(BASE, dest, timeout_min=2, fetch_text=fetch)
+        # `ffmpeg=` keeps the probe hermetic: without it require_ffmpeg() falls back
+        # to shutil.which, so this test only passed where ffmpeg happened to be
+        # installed and raised HLS_REQUIRES_FFMPEG on a bare CI runner.
+        await hls.download_hls(
+            BASE, dest, timeout_min=2, ffmpeg="unused-by-sim", fetch_text=fetch
+        )
     err = excinfo.value
     assert err.code is ErrorCode.HLS_FAILED
     assert "boom: invalid data" in err.detail
@@ -273,7 +278,13 @@ async def test_download_hls_timeout_kills(
     _replace_argv(monkeypatch, SIM_TIMEOUT, "timeout")
     fetch = StubFetch(_read("master_multi.m3u8"), _read("child_plain.m3u8"))
     with pytest.raises(XdlError) as excinfo:
-        await hls.download_hls(BASE, tmp_path / "v.mp4", timeout_min=0, fetch_text=fetch)
+        await hls.download_hls(
+            BASE,
+            tmp_path / "v.mp4",
+            timeout_min=0,
+            ffmpeg="unused-by-sim",
+            fetch_text=fetch,
+        )
     assert excinfo.value.code is ErrorCode.HLS_FAILED
     assert "timed out" in excinfo.value.detail
 
