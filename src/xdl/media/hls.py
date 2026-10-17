@@ -157,6 +157,8 @@ def ffmpeg_argv(
     """Exact argv of the lossless remux (docs/technical/04 preferred path).
 
     progress=True pipes `-progress pipe:1` key=value frames instead of `-stats`.
+    `-f mp4` is explicit because the `.part` suffix defeats ffmpeg's
+    extension-based output-format inference.
     """
     stats = ("-progress", "pipe:1", "-nostats") if progress else ("-stats",)
     return [
@@ -170,6 +172,7 @@ def ffmpeg_argv(
         "-map", "0:v:0", "-map", "0:a?",
         "-c", "copy",
         "-movflags", "+faststart",
+        "-f", "mp4",
         "-y", str(dest_part),
     ]
 

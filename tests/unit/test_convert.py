@@ -49,6 +49,7 @@ def test_mp3_argv_exact() -> None:
         "ffmpeg.exe", "-hide_banner", "-nostdin", "-loglevel", "error", "-stats",
         "-i", "in.mp4",
         "-vn", "-c:a", "libmp3lame", "-q:a", "0",
+        "-f", "mp3",  # .part suffix defeats extension inference
         "-y", "out.part",
     ]
     assert "-q:a" in argv and argv[argv.index("-q:a") + 1] == "0"  # V0

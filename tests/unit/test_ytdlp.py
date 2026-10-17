@@ -141,6 +141,7 @@ async def test_no_video_formats_raises_no_video() -> None:
     [
         ("ERROR: [twitter] 1750: HTTP Error 404: Not Found", ErrorCode.NOT_FOUND),
         ("ERROR: [twitter] 1750: This post is unavailable", ErrorCode.NOT_FOUND),
+        ("ERROR: [twitter] 1750: No video could be found in this tweet", ErrorCode.NO_VIDEO),
         ("ERROR: [twitter] 1750: Login needed to view this content", ErrorCode.AUTH_REQUIRED),
         ("ERROR: [twitter] 1750: HTTP Error 401: Unauthorized", ErrorCode.AUTH_REQUIRED),
         ("ERROR: [twitter] 1750: Content is sensitive", ErrorCode.NOT_EMBEDDABLE),

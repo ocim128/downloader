@@ -26,13 +26,15 @@ def mp3_argv(
 ) -> list[str]:
     """`-vn -c:a libmp3lame -q:a 0` — V0, the best-possible VBR transcode of
     the source. Honest quality note (docs/technical/04): X serves lossy AAC;
-    this is a best-possible transcode, not a lossless extraction."""
+    this is a best-possible transcode, not a lossless extraction. `-f mp3`
+    explicit: the `.part` suffix defeats extension inference."""
     stats = ("-progress", "pipe:1", "-nostats") if progress else ("-stats",)
     return [
         ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error",
         *stats,
         "-i", str(src),
         "-vn", "-c:a", "libmp3lame", "-q:a", "0",
+        "-f", "mp3",
         "-y", str(dest_part),
     ]
 
@@ -41,13 +43,15 @@ def gif_argv(
     src: Path, dest_part: Path, ffmpeg: str = "ffmpeg", *, progress: bool = False
 ) -> list[str]:
     """Two-pass palette in one filter graph (docs/technical/04): 15 fps,
-    source-specific palettegen/paletteuse. Output is large — opt-in by design."""
+    source-specific palettegen/paletteuse. Output is large — opt-in by
+    design. `-f gif` explicit (see mp3_argv)."""
     stats = ("-progress", "pipe:1", "-nostats") if progress else ("-stats",)
     return [
         ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error",
         *stats,
         "-i", str(src),
         "-vf", "fps=15,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
+        "-f", "gif",
         "-y", str(dest_part),
     ]
 
@@ -93,9 +97,17 @@ async def run_ffmpeg(
         raise
 
     if rc != 0:
+        tail_text = tail.decode("utf-8", "replace").strip()
+        if "does not contain any stream" in tail_text:
+            # e.g. --audio-only on an audio-less video: nothing to encode.
+            raise XdlError(
+                ErrorCode.TRANSCODE_FAILED,
+                "source has no encodable stream (audio-less video with "
+                "--audio-only?)",
+            )
         raise XdlError(
             ErrorCode.TRANSCODE_FAILED,
-            f"ffmpeg exited {rc}: {tail.decode('utf-8', 'replace').strip()}",
+            f"ffmpeg exited {rc}: {tail_text}",
         )
 
 

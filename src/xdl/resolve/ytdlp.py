@@ -116,7 +116,8 @@ def _real_ydl(opts: dict[str, Any]) -> Any:
 
 def _map_error(err: Exception) -> XdlError:
     """404 -> NOT_FOUND (definitive), login-required -> AUTH_REQUIRED,
-    sensitive/age-gated/protected -> NOT_EMBEDDABLE, network -> NETWORK."""
+    sensitive/age-gated/protected -> NOT_EMBEDDABLE, network -> NETWORK,
+    no-video -> NO_VIDEO (live-observed yt-dlp twitter message)."""
     msg = str(err)
     lower = msg.lower()
     if (
@@ -127,6 +128,8 @@ def _map_error(err: Exception) -> XdlError:
         or "unavailable" in lower
     ):
         return XdlError(ErrorCode.NOT_FOUND, f"yt-dlp: {msg}")
+    if "no video" in lower:
+        return XdlError(ErrorCode.NO_VIDEO, f"yt-dlp: {msg}")
     if (
         "login" in lower
         or "sign in" in lower

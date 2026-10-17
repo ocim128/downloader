@@ -72,6 +72,7 @@ def default(
     no_meta: bool = typer.Option(False, help="Skip sidecar JSON files."),
     force: bool = typer.Option(False, help="Re-download even if state says complete."),
     audio_only: bool = typer.Option(
+        False,
         "--audio-only",
         help=(
             "Extract MP3 instead of keeping the video (ffmpeg -q:a 0 = V0, the "
@@ -80,6 +81,7 @@ def default(
         ),
     ),
     gif: bool = typer.Option(
+        False,
         "--gif",
         help=("Convert X's mp4-as-gif to a real GIF (ffmpeg palettegen/paletteuse, "
               "15 fps). Output is large."),

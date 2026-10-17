@@ -552,6 +552,10 @@ async def _download_media(tweet: ResolvedTweet, chosen: Chosen, ctx: _RunCtx) ->
         ctx.emit(ProgressEvent(EventKind.download_done, tweet_id=tweet_id,
                                media_index=index, status="failed",
                                detail=err.code))
+        if mode is not None:
+            # A failed transcode is terminal (TRANSCODE_FAILED isn't
+            # retryable): drop the transient container rather than litter.
+            src.unlink(missing_ok=True)
         if err.code is not ErrorCode.CANCELLED:
             # CANCELLED keeps the `incomplete` row + .part for resume.
             _record_failure(ctx.state, tweet, index, dest, chosen, err.code,

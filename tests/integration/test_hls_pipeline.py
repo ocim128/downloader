@@ -377,3 +377,66 @@ async def test_audio_only_resumes_from_staged_container(
     assert len(convert_calls) == 2
     assert dest.read_bytes() == b"converted-artifact"
     assert not src.exists()  # transient container cleaned up
+
+
+# --------------------------------------------------------------------------- #
+# multi-video _vN naming under conversion (docs/technical/05)
+# --------------------------------------------------------------------------- #
+
+
+async def test_multi_video_audio_only_gets_vN_mp3_names(
+    settings: Settings, fake_ffmpeg: str, convert_calls: list[dict[str, Any]]
+) -> None:
+    tweet = payload()
+    tweet["mediaDetails"] = [
+        {
+            "type": "video",
+            "media_url_https": f"https://pbs.twimg.com/thumb_{i}.jpg",
+            "original_info": {"width": 1280, "height": 720},
+            "video_info": {"variants": [
+                {"url": f"https://video.twimg.com/{ID}_m{i}.mp4",
+                 "bitrate": 1000000 + i, "content_type": "video/mp4"},
+            ]},
+        }
+        for i in (1, 2)
+    ]
+    handler, _ = make_world(tweet)
+    async with world_client(handler) as client:
+        report = await run_batch(request_for(settings, audio_only=True),
+                                 client=client)
+
+    assert report.ok == 1
+    names = sorted(p.name for p in settings.storage.root.rglob("*.mp3"))
+    assert len(names) == 2
+    assert names[0].endswith(f"{ID}.mp3")
+    assert names[1].endswith(f"{ID}_v2.mp3")  # _vN suffix survives the ext swap
+    assert not list(settings.storage.root.rglob("*.src.mp4"))  # transients gone
+
+
+# --------------------------------------------------------------------------- #
+# analyze(): resolve-only helper for the UI lane (B's injection point)
+# --------------------------------------------------------------------------- #
+
+
+async def test_analyze_resolves_without_side_effects(settings: Settings) -> None:
+    from xdl.app import analyze
+    from xdl.models import ResolvedTweet, XdlError
+
+    handler, _ = make_world(payload())
+    async with world_client(handler) as client:
+        results = await analyze([URL, "https://instagram.com/p/xyz"], settings,
+                                client=client)
+
+    assert len(results) == 2  # 1:1 with inputs
+    assert isinstance(results[0], ResolvedTweet)
+    assert results[0].source == "syndication"
+    assert isinstance(results[1], XdlError)
+    # no state, no files
+    assert not settings.storage.root.exists() or not any(
+        settings.storage.root.rglob("*")
+    )
+    state = StateStore(settings.db_path)
+    try:
+        assert state.batches() == []  # no batch row for a resolve-only pass
+    finally:
+        state.close()

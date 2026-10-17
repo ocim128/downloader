@@ -160,6 +160,7 @@ def test_ffmpeg_argv_matches_spec(tmp_path: Path) -> None:
         "-map", "0:v:0", "-map", "0:a?",
         "-c", "copy",
         "-movflags", "+faststart",
+        "-f", "mp4",  # .part suffix defeats extension inference
         "-y", str(part),
     ]
 
