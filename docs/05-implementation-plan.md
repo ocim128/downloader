@@ -93,9 +93,10 @@ bind; core library unchanged from M2.
       ([technical/03-download-engine.md](technical/03-download-engine.md)).
 - [ ] Graceful Ctrl+C (finish chunk, flush state, exit 130).
 - [ ] Circuit breaker: N consecutive upstream failures → abort remaining, keep summary.
-- [ ] `YtdlpResolver` fallback adapter — resolve-only mode, `[ytdlp]` extra, default
-      `fallback = "auto"` (used automatically for `NOT_EMBEDDABLE` posts and endpoint
-      breakage) (spec: [technical/02-media-resolution.md](technical/02-media-resolution.md)
+- [ ] `YtdlpResolver` fallback adapter — resolve-only mode, bundled runtime dep
+      (round 3), default `fallback = "auto"` (used automatically for
+      `NOT_EMBEDDABLE` posts and endpoint breakage)
+      (spec: [technical/02-media-resolution.md](technical/02-media-resolution.md)
       Adapter D).
 
 **Accept**: MVP story #4 (simulated 429 via MockTransport); kill mid-download and re-run

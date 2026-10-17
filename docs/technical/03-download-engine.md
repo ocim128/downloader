@@ -39,12 +39,14 @@ Key properties:
   prefix. Optional hardening: store `ETag`/`Last-Modified` of the first attempt in the
   `.part`'s sidecar (`.part.meta`) and restart if they changed (post edited / URL
   re-signed to different rendition).
-- **Expired signed URLs (audit round 2)**: `video.twimg.com` URLs carry short-lived
-  tokens; a resumed or long-running transfer can hit `403` mid-flight. A 403 on a
-  *media* URL is `LINK_EXPIRED`, not `AUTH_REQUIRED`: trigger **one re-resolve** of
-  the post and retry the same rendition with the fresh URL (resume the Range against
-  it when the object path is unchanged; restart clean if the rendition changed).
-  Only a 403 at the *resolve* stage means auth/protected content.
+- **Expired signed URLs (audit round 2, layering fix round 3)**: `video.twimg.com`
+  URLs carry short-lived tokens; a resumed or long-running transfer can hit `403`
+  mid-flight. A 403 on a *media* URL is `LINK_EXPIRED`, not `AUTH_REQUIRED`: the
+  engine's only job is to **raise `LinkExpiredError`** — it never calls a resolver
+  (layering rule 6). The **orchestrator** catches it, re-resolves the post, and
+  re-dispatches a fresh `DownloadJob` for the same rendition (resuming the Range when
+  the object path is unchanged; restarting clean if the rendition changed) — once per
+  item. Only a 403 at the *resolve* stage means auth/protected content.
 - **Atomic completion**: write to `.part`, `os.replace` to final name. A crash at any
   instant never leaves a half-file posing as complete.
 - **Length handling & verification (audit round 2)**: on a 206, the total comes from

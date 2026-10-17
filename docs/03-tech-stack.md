@@ -35,7 +35,7 @@ base-36 trick).
 
 ## Dependencies
 
-### Runtime (kept deliberately small)
+### Runtime
 
 | Package | Why | Notes |
 |---|---|---|
@@ -44,23 +44,22 @@ base-36 trick).
 | `typer` | CLI parsing, help, shell completion | thin wrapper over argparse |
 | `rich` | progress bars, tables, Windows-safe styling | reporter layer only |
 | `platformdirs` | OS-correct config/log dirs | `%APPDATA%\xdl` on Windows |
+| `yt-dlp` | X-extraction safety-net resolver (Adapter D) | **standard runtime dep (round 3)** — `fallback = "auto"` must work out of the box; `NOT_EMBEDDABLE` is the common real-world case, so an extra would ship a default install without its own mitigation |
+| `fastapi` + `uvicorn` | `xdl serve` localhost web UI (core M3) | standard runtime dep (round 3) |
+| `jinja2` | web UI templates | standard runtime dep (round 3) |
 
 Deliberately **not** included:
 
 - `tenacity` — retry/backoff is ~30 lines and needs deep integration with our throttle
   state and `Retry-After`; a library would fight us. Hand-rolled in `engine/throttle.py`.
-- `aiofiles` — the download path writes sequentially per file; thread-offloaded writes
-  add complexity without measurable gain at 3 concurrent files. Plain sync file I/O in
-  the async path is acceptable *only* inside the downloader's write loop where chunks are
-  large (documented decision; revisit if profiling shows stalls).
-- `yt-dlp` as a **core runtime dependency** — the resolver layer stays own-code and
-  source-agnostic (TikTok later), and yt-dlp's bulk/dedup/naming story doesn't fit our
-  pipeline. But it is a **first-class opt-in fallback adapter**, not a dirty secret:
-  installable as an extra (`pipx install ".[ytdlp]"`) and enabled with
-  `fallback = "ytdlp"`. When X breaks the syndication endpoint, the immediate fix is a
-  config flip while the primary adapter gets patched — the yt-dlp community fixes X
-  extraction continuously, and solo-owning that arms race is this project's biggest
-  maintenance risk. Outline: [technical/02-media-resolution.md](technical/02-media-resolution.md) Adapter D.
+- `aiofiles` — chunk writes stay synchronous (64 KiB to OS cache doesn't block
+  meaningfully), while fsync/rename/DB commits go through `asyncio.to_thread` per the
+  engine spec — no async file library needed (round 3 sync with
+  [technical/03-download-engine.md](technical/03-download-engine.md)).
+- Nothing else. (yt-dlp, fastapi, uvicorn, jinja2 were extras until round 3 — extras
+  shipped a default install that silently lacked the plan's own mitigations: `auto`
+  fallback with no yt-dlp present, core-M3 web UI with no server. They are standard
+  runtime deps now; see table above.)
 
 ### Dev
 
@@ -75,6 +74,8 @@ Deliberately **not** included:
 
 - `pyproject.toml`, `src/` layout, console script entry point: `xdl = xdl.cli:main`.
 - Install for the owner: `uv tool install .` or `pipx install .` (isolated venv, on PATH).
+- No extras (round 3): a plain install brings the CLI, `xdl serve`, and the yt-dlp
+  adapter together — the mitigations the plan relies on cannot be accidentally absent.
 - Dev: `uv venv && uv pip install -e ".[dev]"`.
 - Python version pinned via `requires-python = ">=3.12"`.
 - No lockfile commitment beyond what `uv` generates (`uv.lock` committed is fine).

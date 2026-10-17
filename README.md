@@ -21,7 +21,7 @@ asyncio + httpx + rich), and implementation milestones:
 ## Snapshot of key decisions
 
 - Single Python package, one process, CLI (`xdl`) + localhost web UI sharing one core.
-- Resolver chain: syndication fast-path → yt-dlp adapter (auto when installed);
+- Resolver chain: syndication fast-path → yt-dlp adapter (auto, bundled);
   no X account needed by default.
 - Deterministic Windows-safe filenames, JSON metadata sidecars, SQLite history
   with skip/retry-failed semantics.

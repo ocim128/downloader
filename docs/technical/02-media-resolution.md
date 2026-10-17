@@ -7,7 +7,7 @@ knowledge lives in this layer — the rest of the pipeline is source-agnostic.
 
 ```
 SyndicationResolver        (fast-path; account-free, official embed data)
-  └─ NOT_EMBEDDABLE / failure ─> YtdlpResolver   (auto when installed; safety net)
+  └─ NOT_EMBEDDABLE / failure ─> YtdlpResolver   (auto; bundled safety net)
                                   └─ on failure ─> FxtwitterResolver (opt-in; third-party)
                                                    └─ GraphQLResolver (M7, opt-in, own cookies)
 ```
@@ -197,7 +197,7 @@ above; 404 → `NOT_FOUND`.
   bearer/token dance is exactly the maintenance yt-dlp already does internally. Treat
   as research notes only; prefer Adapter D for the account-free second hop.
 
-## Adapter D — yt-dlp fallback (auto when installed) — outline
+## Adapter D — yt-dlp fallback (auto; bundled) — outline
 
 Positioned as the **maintenance safety net** (risk R1) *and* — since audit round 2 — the
 default second hop for any post syndication refuses (`NOT_EMBEDDABLE`: sensitive /
@@ -205,11 +205,12 @@ age-gated / fresh) whenever the package is importable (`fallback = "auto"`). Whe
 changes the syndication shape outright, the immediate remedy is a config flip or
 `pip install -U yt-dlp` while the primary adapter gets patched.
 
-- Installed via optional extra: `pipx install ".[ytdlp]"`. Imported as a library when
-  present — no subprocess, no CLI-output parsing.
+- Bundled as a **standard runtime dependency** (round 3 — an optional extra would ship
+  a default install whose `fallback = "auto"` quietly had no second hop). Imported as
+  a library — no subprocess, no CLI-output parsing.
 - `YtdlpResolver` implements the same `Resolver` protocol and maps
   `yt_dlp` extraction errors onto our taxonomy (`404 → NOT_FOUND`,
-  login-required/sensitive → `AUTH_REQUIRED`/`TOMBSTONE`, network → `NETWORK`).
+  login-required/sensitive → `AUTH_REQUIRED`/`NOT_EMBEDDABLE`, network → `NETWORK`).
 - Two modes (config `ytdlp_mode`):
   - `resolve-only` (**default**) — use its info dict to build `ResolvedTweet`; our
     engine still downloads, so naming, sidecars, state, and dedup behave identically

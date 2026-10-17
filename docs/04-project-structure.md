@@ -34,8 +34,13 @@ downloader/
 │       │   ├── naming.py       # template render + Windows-safe sanitize + collisions
 │       │   ├── state.py        # SQLite: schema, upsert, skip lookups, retry-failed
 │       │   └── sidecar.py      # meta.json writer (atomic)
+│       ├── ui/
+│       │   ├── app.py          # FastAPI app: page, /jobs, /analyze, SSE stream,
+│       │   │                   #   localhost-only + Host-check guards (core M3)
+│       │   ├── templates/      # Jinja2: index.html (paste box, cards, toolbar)
+│       │   └── static/         # minimal CSS + vanilla JS / htmx attributes
 │       └── report/
-│           ├── events.py       # ProgressEvent neutral events (CLI + future UI share)
+│           ├── events.py       # ProgressEvent neutral events (CLI + web UI share)
 │           └── render.py       # rich progress bars + summary table
 ├── tests/
 │   ├── conftest.py             # fixtures: Settings, httpx MockTransport, tmp dirs
@@ -51,6 +56,8 @@ downloader/
 │   │   └── test_fxtwitter.py
 │   ├── integration/
 │   │   └── test_pipeline.py    # full batch via MockTransport, incl. resume & 429
+│   ├── ui/
+│   │   └── test_serve.py       # FastAPI TestClient: /jobs, /analyze, SSE, Host guard
 │   └── fixtures/
 │       ├── syndication/        # *.json recorded responses (video, gif, photo-only,
 │       │                       #   tombstone, empty, multi-video)
@@ -76,6 +83,7 @@ downloader/
 | `media/hls.py` | m3u8 → mp4 | `remux(url, dest)`, `needs_ffmpeg(assets) -> bool` |
 | `storage/naming.py` | deterministic paths | `render_path(root, tweet: ResolvedTweet, index: int) -> Path` |
 | `storage/state.py` | history DB | `seen(tweet_id) -> bool`, `record(row)`, `failed_items()` |
+| `ui/app.py` | `xdl serve` FastAPI app: page, `/jobs`, `/analyze`, SSE stream, localhost guards | `create_app(settings, run_batch) -> FastAPI` |
 | `report/events.py` | neutral progress events | `ProgressEvent` dataclass stream |
 
 ## Core models (illustrative)
@@ -100,20 +108,31 @@ class ResolvedTweet(BaseModel):
     media: list[MediaAsset]
     source: Literal["syndication", "fxtwitter", "graphql"]
 
+class MediaOutcome(BaseModel):
+    index: int               # media position in the post
+    status: Literal["ok", "skipped", "failed"]
+    file: Path | None
+    error: XdlError | None   # per-media failure reason
+
 class ItemResult(BaseModel):
     ref: TweetRef
-    status: Literal["ok", "skipped", "failed"]
-    error: XdlError | None
-    files: list[Path]
-    detail: str              # human-readable, shown in summary
+    status: Literal["ok", "skipped", "partial", "failed"]
+    media: list[MediaOutcome]   # one per media asset (round 3: multi-video posts can
+                                # finish part-way; "partial" = ≥1 ok AND ≥1 failed)
+    error: XdlError | None      # headline error for display (first failure)
+    files: list[Path]           # convenience: the ok media files
+    detail: str                 # human-readable, shown in summary
 ```
 
 ## Layering rules (enforced in review)
 
-1. `cli.py` imports `app`, `config`, `report`. Nothing imports `cli`.
+1. Frontends (`cli.py`, `ui/`) import `app`, `config`, `report`; nothing imports them.
 2. `app.py` may import everything except `report/render` specifics (it emits
    `ProgressEvent`s; rendering subscribes).
 3. Adapters (`resolve/*`) import `models` + `httpx` only — never storage or engine.
 4. Storage never performs network I/O; engine never touches SQLite.
 5. Everything path-related goes through `pathlib.Path`; string paths are banned in
    `src/` (ruff rule `PTH`).
+6. Cross-stage recovery belongs to the orchestrator: the engine raises
+   `LinkExpiredError` and never calls a resolver; `app.py` catches it, re-resolves,
+   and re-dispatches the `DownloadJob` (round 3 layering fix).

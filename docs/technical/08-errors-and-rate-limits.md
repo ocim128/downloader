@@ -14,7 +14,7 @@ defined effect on the run.
 | `TWEET_ID_INVALID` | normalize | no | "implausible post id: <id>" | item failed |
 | `NOT_EMBEDDABLE` | resolve | via next adapter | "not servable by this adapter (sensitive/age-gated/fresh/unindexed)" | falls through the chain; terminal only if no adapter succeeds |
 | `NOT_FOUND` | resolve | no | "post deleted or never existed (failed on every adapter)" | item failed |
-| `LINK_EXPIRED` | download | yes (once) | "signed CDN URL expired mid-transfer; re-resolving" | one re-resolve + retry with fresh URL, then fail |
+| `LINK_EXPIRED` | download | yes (once) | "signed CDN URL expired mid-transfer; re-resolving" | engine raises `LinkExpiredError`; the **orchestrator** re-resolves and re-dispatches once (layering rule 6), then fail |
 | `AUTH_REQUIRED` | resolve/media | no | "needs an account session (see `--cookies-file`)" | item failed |
 | `NO_VIDEO` | resolve/select | no | "post has no video (photos only)" | item failed (expected in mixed batches) |
 | `RATE_LIMITED` | any network | **yes, timed** | "rate limited; backing off <N>s" | global pause, retry same item |
@@ -60,7 +60,7 @@ up naturally later.
 
 ```
 all items ok/skipped/dup            → 0
-≥1 failed AND ≥1 ok/skipped         → 1
+≥1 failed-or-partial, ≥1 ok/skipped → 1
 all items failed                    → 2
 config/usage error before IO        → 2 (typer's own usage errors)
 Ctrl+C                              → 130 (after summary)
@@ -70,13 +70,14 @@ Ctrl+C                              → 130 (after summary)
 
 ```
 ┌ Results ────────────────────────────────────────────────────────┐
-│ #  id…812   author    status  detail                            │
-│ 1  …352     someuser  ok      24.1 MB in 8.3s                   │
-│ 2  …353     other     skipped already downloaded (2 media)      │
-│ 3  …354     third     failed  NO_VIDEO — photos only            │
-│ 4  …355     fourth    failed  TOMBSTONE — protected? (--cookies)│
+│ #  id…812   author    status   detail                           │
+│ 1  …352     someuser  ok       24.1 MB in 8.3s                  │
+│ 2  …353     other     skipped  already downloaded (2 media)     │
+│ 3  …354     third     failed   NO_VIDEO — photos only           │
+│ 4  …355     fourth    failed   NOT_EMBEDDABLE — sensitive?      │
+│ 5  …356     multi     partial  2/3 media ok; 1 failed NETWORK   │
 └──────────────────────────────────────────────────────────────────┘
-  ok 1 · skipped 1 · failed 2 · 1 photo-only · exit 1
+  ok 1 · skipped 1 · partial 1 · failed 2 · exit 1
 ```
 
 The `detail` line always carries the *next action* hint when one exists (`retry-failed`,

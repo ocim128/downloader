@@ -25,6 +25,7 @@ gives live per-item progress with zero client state machinery, and FastAPI's
 |---|---|---|
 | GET | `/` | main page: paste box, options row (quality, output dir override), history table |
 | POST | `/jobs` | body: `{urls: string, options?}` → creates batch, returns `{job_id}`; textarea parsed exactly like the CLI file reader (comments/blanks/dedup); optional `items: [{url, quality, format}]` per-item overrides (power the cards' format buttons) |
+| POST | `/analyze` | body `{urls}` → **resolve-only, no downloads** (Flow B): returns card data — thumbnail, author, text, and the *actually available* formats per item; in-memory session cache, never persisted (signed URLs expire) |
 | GET | `/jobs` | list recent batches from state.db (status counts) |
 | GET | `/jobs/{id}` | batch detail: per-item table |
 | GET | `/jobs/{id}/events` | **SSE**: `ProgressEvent`s from `run_batch` (same events the CLI renders) |
@@ -63,6 +64,20 @@ Each queue item renders as a **card**, not a table row:
 Batch toolbar above the list: **Download all — best MP4**, **Download all — MP3**,
 concurrency slider (1–5, maps to `--concurrency`), output-directory picker.
 
+## Two interaction flows (round 3)
+
+Format pills cannot be honest before resolution — available qualities are unknown
+until the post is resolved. So both flows exist:
+
+- **Flow A — Auto-batch (default)**: paste URLs → click **Download all** → the
+  orchestrator resolves and downloads each post at its best quality, streaming live
+  progress cards. The toolbar's quality/MP3 choices act as *policies/caps* (e.g.
+  "720p" means "at most 720p"), not claims about what exists.
+- **Flow B — Inspect, then pick**: paste URLs → click **Analyze** → `POST /analyze`
+  resolves metadata without downloading and renders cards with thumbnail, author,
+  text, and the **actually available** formats as buttons → clicking one enqueues
+  `POST /jobs` with that per-item choice (the `items` field).
+
 ## Wiring to the core
 
 - `run_batch` already emits neutral `ProgressEvent`s (report/events.py) — the UI
@@ -83,8 +98,9 @@ concurrency slider (1–5, maps to `--concurrency`), output-directory picker.
 - No file serving of the downloads tree through HTTP — `reveal` shells out to the OS
   file manager instead (never expose a directory-listing endpoint by accident).
 
-## Dependencies added
+## Dependencies
 
-`fastapi`, `uvicorn` (standard extra), `jinja2`, `sse-starlet` (or hand-rolled SSE with
-StreamingResponse — prefer hand-rolled to keep deps at zero here). All in an optional
-`[ui]` extra: `pipx install ".[ui]"` — CLI-only installs stay lean.
+`fastapi`, `uvicorn`, `jinja2` — **standard runtime dependencies** (round 3: the web
+UI is core M3, so a plain `pipx install .` must yield a working `xdl serve`; an
+`[ui]` extra would ship a default install missing a core feature). SSE is hand-rolled
+on `StreamingResponse` — no `sse-starlet`.

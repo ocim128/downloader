@@ -109,7 +109,10 @@ concurrency saturates a home connection long before the CPU.
 Owns the batch lifecycle: reads config, builds queues, drives stages, collects
 per-item `Result` records, decides skip-vs-proceed, produces the final summary and exit
 code. The **only** component the frontends talk to (one entrypoint:
-`run_batch(request: BatchRequest) -> BatchReport`).
+`run_batch(request: BatchRequest) -> BatchReport`). It also owns cross-stage recovery:
+when the engine raises `LinkExpiredError` (signed CDN URL expired mid-transfer), the
+orchestrator — never the engine — re-resolves the post and re-dispatches a fresh
+`DownloadJob` (layering rule 6).
 
 ### Resolver layer (`resolve/`)
 - `Resolver` protocol: `async resolve(ref: TweetRef) -> ResolvedTweet`.

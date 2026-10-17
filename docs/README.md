@@ -64,7 +64,8 @@ only) that mimics the x-downloader.com paste-and-grab UX is a **core deliverable
 - **yt-dlp is the maintenance safety net, not the engine**: resolver chain
   `syndication → yt-dlp` with `fallback = "auto"` — syndication 404/tombstone means
   "not embeddable" (sensitive/age-gated/fresh posts), **not** "post gone", so the chain
-  falls through automatically whenever the yt-dlp adapter is installed.
+  falls through automatically; yt-dlp ships as a standard dependency, so `auto` works
+  out of the box.
 - **Everything local**: files, SQLite state, config. Nothing phone-home.
 - **Windows-first** (primary machine is Windows 11), but cross-platform-clean Python.
 
@@ -88,3 +89,11 @@ only) that mimics the x-downloader.com paste-and-grab UX is a **core deliverable
   on expired-URL 403 (`LINK_EXPIRED`) instead of failing. `asyncio.to_thread` for
   fsync/DB commits on Windows. Directory segments explicitly under sanitization.
   HLS selection is progressive-first (payloads publish no HLS bitrates).
+- **2026-10-17 (round 3)** — verification audit confirmed the round-2 fixes; 4 sync
+  gaps closed: yt-dlp + fastapi/uvicorn/jinja2 promoted from extras to standard
+  runtime deps (a default install must contain the plan's own mitigations);
+  `src/xdl/ui/` added to the project tree; `LINK_EXPIRED` recovery explicitly owned by
+  the orchestrator (engine raises, never re-resolves — layering rule 6);
+  `ItemResult` gains `partial` status + per-media outcomes; web UI documents both
+  flows (auto-batch default, Analyze-then-pick). The "(phase 2)" serve label the
+  audit flagged was already fixed in round 2.
