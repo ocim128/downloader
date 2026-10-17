@@ -7,6 +7,14 @@ conversions (MP3, GIF).
 
 ## Detection
 
+> **⚠ Field reality (2026-10-17, round-1 spike):** tweet payloads never include
+> width/height on video variants (only `content_type`/`bitrate`/`url`), and
+> m3u8-only variant arrays were never observed live — every video post carries the
+> m3u8 **plus** ≥2 progressive MP4s. So resolution-based rules must come from the
+> m3u8 `RESOLUTION` lines or a bitrate heuristic, and HLS is best treated as a
+> fallback used only when the playlist genuinely beats the best MP4, not a
+> pre-emptive path.
+
 A variant is HLS when `content_type == "application/x-mpegURL"` or URL ends
 `.m3u8`. Selection policy ([selector](#interaction-with-variant-selection)):
 

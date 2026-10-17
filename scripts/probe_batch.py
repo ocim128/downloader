@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
 """Ad-hoc batch prober for candidate ids (spike only, never from pytest)."""
 
-import importlib.util
 import json
 import sys
 import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from find_candidates import classify  # noqa: E402
+from find_candidates import classify
 
 
 def main() -> int:
-    cands = [c for c in sys.argv[1:]]
+    cands = list(sys.argv[1:])
     if not cands:
         print(__doc__)
         return 2

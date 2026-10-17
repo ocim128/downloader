@@ -97,3 +97,11 @@ only) that mimics the x-downloader.com paste-and-grab UX is a **core deliverable
   `ItemResult` gains `partial` status + per-media outcomes; web UI documents both
   flows (auto-batch default, Analyze-then-pick). The "(phase 2)" serve label the
   audit flagged was already fixed in round 2.
+- **2026-10-17 (implementation round 1)** — two parallel agents delivered M0–M3
+  (branches `feat/core` + `feat/ui-spike`, merged to `main`, 230 tests). Field
+  findings that supersede earlier docs: the token algorithm is a **byte-exact V8
+  port** (docs sketch was wrong; see technical/02 superseded banner); the endpoint
+  currently accepts any non-empty token; **sensitive posts ARE served** full bodies
+  (softening audit round 2's 20–40% failure claim); HLS-only variants never occur
+  live; `urllib.request` fingerprints get 404 (httpx + browser UA required). All
+  deviations and integration points are recorded in `COORDINATION.md`.

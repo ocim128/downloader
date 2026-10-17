@@ -19,7 +19,7 @@ import json
 import math
 import re
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -108,8 +108,8 @@ def _f64_to_base36_js(value: float) -> str:
             fraction_chars.append(_B36_DIGITS[digit])
             # Calculate remainder.
             fraction -= digit
-            # Round to even.
-            if fraction > 0.5 or (fraction == 0.5 and digit & 1):
+            # Round to even.  (nested shape mirrors V8; do not restructure)
+            if fraction > 0.5 or (fraction == 0.5 and digit & 1):  # noqa: SIM102
                 if fraction + delta > 1.0:
                     # Carry-over: back-trace already written digits.
                     while True:
@@ -189,7 +189,7 @@ def record(tweet_id: str, name: str, source_url: str) -> None:
     print(f"GET {url}")
     print(f"token = {token!r}")
     envelope: dict[str, object] = {
-        "recorded_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "recorded_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "tweet_id": tweet_id,
         "source_url": source_url,
         "http_status": None,

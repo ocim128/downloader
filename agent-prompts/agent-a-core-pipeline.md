@@ -1,118 +1,127 @@
-# AGENT A — Core Pipeline (critical path)
+# AGENT A — Round 2: Resilience & Media Completeness (M4 + M5)
 
-You are implementing the **core** of a private, local batch downloader for X (Twitter)
-video posts. The complete, three-times-audited plan already exists in this repo under
-`docs/` — your job is Milestones **M0 → M1 → M2** of
-[`docs/05-implementation-plan.md`](../docs/05-implementation-plan.md), in that order.
-Partial completion is acceptable, but you must deliver in priority order and leave
-every touched milestone green and tested.
+You are continuing a **working project** — not starting one. `main` already contains
+M0–M3: a functional `xdl` CLI (single-URL, batch, dedup/skip, retry-failed, SQLite
+state, sidecars), the syndication+fxtwitter resolvers with a V8-exact token port, the
+download engine, `media/hls.py` (fully tested, not yet wired into the pipeline), and
+the local web UI. 230 hermetic tests green; ruff + mypy strict clean.
 
-## Parallel-lane context (read this carefully)
+**Your lane: Milestones M4 (resilience) then M5 (media completeness), plus small
+cross-lane surface items.** Partial completion is fine; deliver in priority order and
+leave every stopping point green.
 
-Another agent (**Agent B**) works simultaneously on a **separate branch and separate
-directory** on: the M1 live spike (fixtures + token goldens), `media/hls.py`, and the
-M3 web UI. You will not collide because file ownership is a hard boundary:
+## Before anything else
 
-**You own (only you create/edit these):**
-- `pyproject.toml`, `README.md` (quickstart section)
-- `src/xdl/**` — **except** `src/xdl/ui/**` and `src/xdl/media/hls.py`
-- `tests/**` — **except** `tests/ui/**`, `tests/fixtures/**`, `tests/unit/test_hls.py`
-- `COORDINATION.md` — your append-only section only
+1. Read `COORDINATION.md` end to end — both round-1 handoffs. Your lane's previous
+   agent documented 12 deliberate deviations (multi-Chosen `select()`, `run_batch`
+   kwargs, semaphore-not-queue, `Author.verified`, `media_count` = downloadable
+   media only, `%LOCALAPPDATA%\xdl`, closest-fit `--quality`, HLS branch marker in
+   `app._download_media`, etc.). Honor them; don't "fix" them back to the docs.
+2. Skim `docs/05-implementation-plan.md` (M4/M5), `docs/technical/03-download-engine.md`,
+   `08-errors-and-rate-limits.md`, `02-media-resolution.md` Adapter D, and
+   `04-hls-and-ffmpeg.md`.
+3. **Doc-supersession rule:** where code + `COORDINATION.md` disagree with `docs/`,
+   the code wins (e.g. the token algorithm — `docs/technical/02` carries a superseded
+   banner; the V8 port in `resolve/syndication.py` is the truth).
 
-**Never create or edit (Agent B's):**
-`src/xdl/ui/**`, `src/xdl/media/hls.py`, `tests/ui/**`, `tests/fixtures/**`,
-`tests/unit/test_hls.py`, `scripts/**`, `agent-prompts/**`.
+## Parallel-lane context
 
-You may **read** B's fixtures (`tests/fixtures/syndication/*.json`,
-`tests/fixtures/golden_tokens.json`) once they appear; until then, embed minimal
-inline JSON payloads in your adapter tests (tests are hermetic either way — see Hard
-rules).
+Agent B works simultaneously on branch `feat/ui-2` (separate clone) doing: stub→real
+UI integration, `config.py` precedence + logging module, docs reconciliation, README,
+manual test matrix. **File ownership is a hard boundary:**
 
-## Setup
-
-- Work in the existing checkout of https://github.com/ocim128/downloader
-  (Windows, Git Bash; Python 3.12+; use `uv` or `python -m venv`).
-- Create your branch from `main` and stay on it: `git checkout -b feat/core`.
-- Commit early and often, message prefix `[core]`. Push the branch periodically and
-  at the end: `git push -u origin feat/core`.
-- **Never** merge, rebase onto, or push to `main` or `feat/ui-spike`. Integration is
-  done by the owner afterwards.
-
-## Read before writing code
-
-1. `docs/README.md` (orientation + decision log)
-2. `docs/05-implementation-plan.md` — M0/M1/M2 checklists and acceptance criteria
-3. `docs/04-project-structure.md` — repo tree, module APIs, **Layering rules 1–6**
-4. Technical specs as you reach them: `docs/technical/01-url-parsing.md`,
-   `02-media-resolution.md` (exact token algorithm + `NOT_EMBEDDABLE` chain
-   semantics), `03-download-engine.md`, `05-storage-naming-dedup.md` (full SQLite
-   schema), `06-metadata-sidecar.md`, `07-cli-and-config.md`, `08-errors-and-rate-limits.md`,
-   `09-testing.md`.
+- **You own:** `pyproject.toml`, `src/xdl/{__init__,app,cli,models,urls}.py`,
+  `src/xdl/engine/**`, `src/xdl/resolve/**`, `src/xdl/media/**` (including
+  `hls.py` this round — you are its integration owner), `src/xdl/storage/**`,
+  `src/xdl/report/{events,render}.py`, `tests/unit/**`, `tests/adapters/**`,
+  `tests/integration/**`, `tests/conftest.py`.
+- **Never edit (B's):** `src/xdl/ui/**`, `tests/ui/**`, `src/xdl/config.py`,
+  `src/xdl/report/logging.py` (B's new file), `README.md`, `CHANGELOG.md`,
+  `docs/**`, `scripts/**`, `tests/fixtures/**`, `agent-prompts/**`.
+- If `config.py` needs a signature change for you, request it via `COORDINATION.md`
+  and keep calling the current `Settings.load(...)` shape until then.
 
 ## Your priority order
 
-### Priority 1 — M0 scaffold (must be done first, ~half a day)
-Per the plan's M0: `pyproject.toml` (`src/` layout, entry point `xdl = xdl.cli:main`,
-`requires-python = ">=3.12"`), `ruff` + `mypy` config, `pytest` wiring, `models.py`
-with ALL types from `docs/04-project-structure.md`, `cli.py` with `--version` only.
-**Acceptance:** `pip install -e ".[dev]"`, `ruff check .`, `mypy src`, `pytest` all
-green.
+### Priority 1 — M4 resilience (per `docs/05` M4 + tech 03/08)
 
-**Critical packaging rule (round-3 decision):** declare ALL standard runtime
-dependencies from `docs/03-tech-stack.md` in `pyproject.toml` from the start —
-including `yt-dlp`, `fastapi`, `uvicorn`, `jinja2`, which you won't use yet. No
-extras may exist. Agent B's lane depends on these being declared.
+- [ ] Per-item retries: exponential backoff 1,2,4,8,16 s × jitter(0.75–1.25), max 5
+      (`--retries`), retryable classes per `docs/technical/08`; sleeps interruptible.
+- [ ] 429: honor `Retry-After` (seconds or HTTP-date) via `engine/throttle.py`'s
+      global `pause_until` — one worker's 429 pauses ALL workers; escalation per
+      docs/technical/08 (3×429/60 s → ≥120 s pause).
+- [ ] `LINK_EXPIRED`: media-URL 403 → engine raises `LinkExpiredError` (engine never
+      calls a resolver — layering rule 6); orchestrator catches, re-resolves, re-
+      dispatches the fresh `DownloadJob` **once** (resume Range if object path
+      unchanged, else clean restart). Resolve-stage 403 stays `AUTH_REQUIRED`.
+- [ ] Circuit breaker: 8 consecutive item failures, 0 successes between → drain,
+      remaining items `SKIPPED_CIRCUIT_OPEN` recorded `incomplete`, exit 1.
+- [ ] Graceful Ctrl+C: first SIGINT finishes current chunk, flushes state, prints
+      summary, exit 130; second hard-exits (`.part` invariant makes it safe).
+- [ ] `YtdlpResolver` (`resolve/ytdlp.py`): library import (bundled dep — no
+      subprocess), implements the existing `Resolver` protocol, error mapping per
+      docs/technical/02 Adapter D (`404→NOT_FOUND`, login-required/sensitive→
+      `AUTH_REQUIRED`/`NOT_EMBEDDABLE`, network→`NETWORK`); wire into
+      `resolve/base.build_chain` so `fallback="auto"` finally means
+      syndication→yt-dlp (today it silently degrades to syndication-only — your
+      round-1 note #12); resolve-only mode; startup warning when the installed
+      yt-dlp is older than ~14 days.
 
-**Contract rule:** `models.py` and `report/events.py` must match the shapes in
-`docs/04-project-structure.md` exactly — Agent B codes UI against those documented
-shapes, not against your branch. If you must deviate, record it in
-`COORDINATION.md` under `## Agent A notes` immediately, and keep the deviation
-minimal.
+### Priority 2 — M5 media completeness
 
-### Priority 2 — M1 single-URL happy path
-Per the plan's M1 (skip the spike items marked as B's): `urls.py` parser + `t.co`
-expansion; `resolve/base.py` (Resolver protocol + FallbackChain with
-`NOT_EMBEDDABLE` fall-through semantics) and `resolve/syndication.py`; token function
-implemented EXACTLY per `docs/technical/02-media-resolution.md` (f64 → base-36
-shortest-round-trip, strip `0+` runs and the dot). Known-good golden to lock in
-`tests/unit/test_token.py` immediately: tweet id `"20"` → token `"6dq1a2xwd9"`
-(live-verified 2026-10-17). More goldens will arrive from B at
-`tests/fixtures/golden_tokens.json` — make the test load that file if present.
-Also: `media/selector.py` (best-bitrate progressive-first policy),
-`engine/downloader.py` (correct-but-basic streaming download, `.part` + atomic
-rename, `Content-Range`-aware total per the round-2 spec), `storage/naming.py`
-(Windows sanitization rules 1–7 incl. directory segments),
-`storage/sidecar.py`, minimal `report/render.py` progress bar.
-**Acceptance:** `xdl <url>` downloads a public video post's best MP4 + sidecar on
-Windows; parser/token/mapper/selector/naming unit tests pass.
+- [ ] **HLS wiring** at the marked `is_hls(...)` branch in `app._download_media`:
+      call `media/hls.download_hls(...)` with an injected `fetch_text` (httpx
+      client) — B's handoff documents the exact API and the part-file/rename
+      invariant match. Selection policy per the field finding (docs/technical/04
+      banner): MP4 fast-path always; HLS only when no usable MP4 or the playlist
+      genuinely beats the best MP4 (payloads carry no width/height — use m3u8
+      RESOLUTION or a bitrate heuristic). Preserve `HLS_REQUIRES_FFMPEG` +
+      install-hint degradation when ffmpeg is absent.
+- [ ] `--audio-only` → MP3 (`ffmpeg -vn -c:a libmp3lame -q:a 0`; honest quality
+      note in `--help`) and `--gif` → real GIF (two-pass palettegen/paletteuse);
+      ffmpeg detection + absent-ffmpeg error path; progress via existing events.
+- [ ] `--force` re-download with `<name>.bak` collision handling (last bak wins);
+      `--no-meta` sidecar skip.
+- [ ] Multi-video `_vN` outputs: verify complete against naming spec; fix gaps.
+- [ ] Close the `QUALITY_UNAVAILABLE` doc gap (your round-1 note #8): closest-fit is
+      implemented — either add the code to taxonomy or (preferred) document
+      closest-fit in `docs/02`/`docs/08`… wait, docs are B's this round — record the
+      decision in `COORDINATION.md` for B instead.
 
-### Priority 3 — M2 batch + state + dedup
-Per the plan's M2: `app.py` `run_batch` (queue + semaphores per
-`docs/02-architecture.md`), `storage/state.py` with the **full three-table schema**
-(`batches`, `tweets` with `media_count`, `downloads` with `batch_id`) and the
-`count(ok) == media_count` skip semantics (NOT an any-row check), input from
-args/`-f`/stdin, `ItemResult` collection with `partial` status, summary table, exit
-codes 0/1/2, `xdl retry-failed`.
-**Acceptance:** the plan's M2 acceptance block, including the 3-video-post
-partial-completion regression test.
+### Priority 3 — cross-lane surface (small, unblocks B's UI lane)
 
-## Hard rules
+- [ ] `xdl.app.analyze(urls: list[str], settings) -> list[ResolvedTweet | XdlError]`
+      resolve-only helper (B's handoff TODO 1 names this exact shape; B will switch
+      the UI's analyze injection to it after merge).
+- [ ] `xdl serve` subcommand → delegate to `xdl.ui.__main__` (B's runner already
+      hard-fails non-loopback binds).
+- [ ] `xdl config` subcommand → print resolved settings + source of each value
+      (machinery lands in B's `config.py`; just render `Settings.load()` output).
+- [ ] If `src/xdl/report/logging.py` exists (B delivers it mid-round), call
+      `setup_logging(settings)` at startup in `cli.main()`; otherwise leave a
+      marked TODO.
 
-- **Layering rules 1–6 in `docs/04` are non-negotiable.** In particular: the engine
-  never imports a resolver (it raises `LinkExpiredError`; the orchestrator recovers).
-- **Tests are hermetic:** no network in `pytest`, ever. Use `httpx.MockTransport` +
-  inline JSON or B's fixtures. Live verification is B's spike lane.
-- `ruff check .` and `mypy src` clean; `pytest` green at every commit.
-- Windows-first: `pathlib` everywhere (ruff `PTH`), no hardcoded `/` paths, no ANSI
-  assumptions.
-- Error semantics follow `docs/technical/08` exactly (codes, retryability, exit-code
-  folding).
-- Do not silently deviate from any spec: smallest sensible choice + note in
-  `COORDINATION.md`.
+## Hard rules (unchanged from round 1)
 
-## Finish line for this session
+- Layering rules 1–6 in `docs/04` are non-negotiable.
+- `pytest` hermetic (no network, no live ffmpeg; `@pytest.mark.live` opt-in only);
+  MockTransport for everything remote.
+- `ruff check .` + `mypy src` clean; `pytest` green at every commit.
+- Windows-first (pathlib only, ruff `PTH`).
+- Specs in `docs/` are guidance; shipped code + `COORDINATION.md` are the contract.
+  Deviations: smallest sensible choice + note under `## Agent A notes`.
 
-1. Priority 1 complete; Priorities 2–3 as far as you get, each stopping point green.
-2. Append a handoff note to `COORDINATION.md` under `## Agent A notes`: what's done,
-   test status, deviations, what's next for your lane.
-3. Push `feat/core`. Print a final summary (done / tested / deferred).
+## Setup & git
+
+- Work in the main checkout (Windows, Git Bash, Python 3.12+; `.venv` exists —
+  `pip install -e ".[dev]"` if fresh).
+- `git checkout main && git pull && git checkout -b feat/core-2` and stay on it.
+- Commits prefixed `[core2]`; push `-u origin feat/core-2` at the end (and
+  periodically). **Never** merge/rebase onto `main` or `feat/ui-2`.
+
+## Finish line
+
+1. Priority 1 fully done; Priority 2+3 as far as you get, green at each stop.
+2. Append handoff to `COORDINATION.md` (`## Agent A notes`): done/tested/deferred,
+   deviations, integration points for B.
+3. Push the branch; print a final summary.

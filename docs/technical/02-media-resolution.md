@@ -47,6 +47,18 @@ GET https://cdn.syndication.twimg.com/tweet-result
 
 ### Token algorithm (exact port from react-tweet)
 
+> **⚠ SUPERSEDED BY IMPLEMENTATION (2026-10-17, round-1 agents).** The sketch below
+> is NOT what real engines produce — a byte-exact port of V8's
+> `DoubleToRadixStringView` (repeated-multiplication digits, half-ulp delta,
+> round-to-even, carry back-trace) is; it was verified 0-mismatch against Node 22
+> across 3000 ids and ships in `src/xdl/resolve/syndication.py` (reference copy in
+> `scripts/record_fixture.py`), with Node-exact goldens in
+> `tests/fixtures/golden_tokens.json`. Correct example: id `"20"` → `"6dq1a2xwd93"`
+> (the sketch below yields `"6dq1a2xwd9"` — a prefix only). Live probes also showed
+> the endpoint currently accepts *any* non-empty token, and exact-matches
+> `urllib.request` fingerprints with 404 (use httpx + a browser UA). The sketch
+> remains for historical context only.
+
 TypeScript original:
 
 ```ts

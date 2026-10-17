@@ -1,134 +1,119 @@
-# AGENT B — Spike, HLS & Web UI (parallel lane)
+# AGENT B — Round 2: Real-Core Integration, Config & Docs (M6)
 
-You are building the three deliverables of a private X (Twitter) video downloader
-that do **not** depend on the core pipeline existing: the **M1 live spike**
-(fixtures + token goldens — this unblocks the other agent, do it FIRST), the
-**HLS/ffmpeg module**, and the **M3 local web UI** (built against the frozen,
-documented interfaces with a stub orchestrator). The complete plan is in `docs/`.
+You are continuing a **working project** — not starting one. `main` already contains
+M0–M3 (core CLI, resolvers with V8-exact token, engine, your `media/hls.py`, and the
+web UI you built last round). 230 hermetic tests green; ruff + mypy strict clean.
 
-## Parallel-lane context (read this carefully)
+**Your lane: swap the UI onto the real core, finish M6 (config precedence +
+logging), reconcile the docs with shipped reality, and run the manual test matrix.**
+Partial completion is fine; deliver in priority order, green at each stop.
 
-Another agent (**Agent A**) works simultaneously on branch `feat/core` implementing
-the core pipeline (M0 scaffold, syndication resolver, download engine, storage,
-batch orchestration) in the main checkout. You will not collide because file
-ownership is a hard boundary:
+## Before anything else
 
-**You own (only you create/edit these):**
-- `scripts/**` (fixture recorder + spike utilities)
-- `tests/fixtures/**` (recorded JSON, `golden_tokens.json`, README)
-- `src/xdl/ui/**`, `tests/ui/**`
-- `src/xdl/media/hls.py`, `tests/unit/test_hls.py`
-- `COORDINATION.md` — your append-only section only
+1. Read `COORDINATION.md` end to end — both round-1 handoffs (your own notes
+   included: hls.py API, live findings, UI TODOs; and Agent A's 12 deviations +
+   frozen `run_batch`/`ProgressEvent` contract you already coded against).
+2. Skim `docs/technical/07-cli-and-config.md` (config precedence + logging spec),
+   `docs/07`-era deviations in A's notes (esp. #7: app dir is
+   `%LOCALAPPDATA%\xdl` via `appauthor=False`), `docs/06-risks-and-legal.md` (cookie
+   policy — for context only), and `docs/09-testing.md` (your matrix).
+3. **Doc-supersession rule:** code + `COORDINATION.md` beat `docs/` where they
+   disagree (token algorithm, `select()` shape, `run_batch` kwargs, etc.).
 
-**Never create or edit (Agent A's):** `pyproject.toml`, `src/xdl/**` except your two
-spots above (`ui/**`, `media/hls.py`), `tests/**` except your spots, `README.md`,
-`agent-prompts/**`.
+## Parallel-lane context
 
-If your UI tests need a dependency that `pyproject.toml` doesn't declare yet (A owns
-that file), install it into your own venv for development and record the need in
-`COORDINATION.md` — do not edit the file.
+Agent A works simultaneously on branch `feat/core-2` (main checkout) doing M4
+(retries, 429 throttle, circuit breaker, Ctrl+C, LINK_EXPIRED recovery,
+YtdlpResolver) and M5 (HLS wiring, MP3/GIF, `--force`/`--no-meta`) plus small
+surface items (`xdl.app.analyze`, `xdl serve`, `xdl config` subcommands).
+**File ownership is a hard boundary:**
 
-## Setup
-
-- Work in a **separate directory** from Agent A: clone fresh, e.g.
-  `git clone https://github.com/ocim128/downloader ../downloader-agent-b`
-  (Windows, Git Bash; Python 3.12+).
-- Branch: `git checkout -b feat/ui-spike` and stay on it.
-- Commits prefixed `[ui]`. Push periodically and at the end:
-  `git push -u origin feat/ui-spike`.
-- **Never** merge, rebase onto, or push to `main` or `feat/core`.
-
-## Read before writing code
-
-1. `docs/README.md` (orientation + decision log)
-2. `docs/05-implementation-plan.md` — M1 spike section, M3 milestone
-3. For the spike: `docs/technical/02-media-resolution.md` (token algorithm,
-   response shapes, `NOT_EMBEDDABLE` semantics)
-4. For HLS: `docs/technical/04-hls-and-ffmpeg.md` (complete spec)
-5. For the UI: `docs/technical/10-local-web-ui.md` (endpoints, flows A/B, cards,
-   security posture) + `docs/04-project-structure.md` (models,
-   `run_batch`/`ProgressEvent` shapes, **Layering rules 1–6**)
+- **You own:** `src/xdl/ui/**`, `tests/ui/**`, `src/xdl/config.py`,
+  `src/xdl/report/logging.py` (new file), `README.md`, `CHANGELOG.md` (new),
+  `docs/**` (reconciliation edits only — see Priority 3), `scripts/**`,
+  `tests/fixtures/**`, your `COORDINATION.md` section.
+- **Never edit (A's):** `pyproject.toml`, `src/xdl/{__init__,app,cli,models,urls}.py`,
+  `engine/**`, `resolve/**`, `media/**`, `storage/**`, `report/{events,render}.py`,
+  `tests/{unit,adapters,integration}/**`, `tests/conftest.py`.
+- Bugs found in A's files: record under `## Agent B notes` with a reproducing
+  command; fix only within your own files.
 
 ## Your priority order
 
-### Priority 1 — M1 live spike (do this FIRST; it unblocks Agent A)
+### Priority 1 — UI on the real core
 
-Network access is ALLOWED here (standalone scripts only — never inside `pytest`).
+- [ ] In `tests/ui/test_serve.py`, drive `create_app` with the **real**
+      `xdl.app.run_batch` (+ real `urls`/`build_chain` where injected) instead of
+      `stub_orchestrator` for the happy-path/endpoint tests. Keep the stub **only**
+      for fault-injection cases (429 storm, mid-batch crash), clearly marked.
+      Real-core tests must stay hermetic — inject an `httpx.MockTransport` client
+      via `run_batch(..., client=...)` (A's round-1 note documents the kwarg).
+- [ ] Boot smoke: `python -m xdl.ui --no-open` against real core, drive one
+      localhost batch with fixture-backed responses, verify SSE order + summary.
+      Record the recipe in `tests/ui/README.md` (new, yours).
+- [ ] Close your round-1 UI TODOs that live in your lane: per-item
+      quality/format collection already feeds `POST /jobs` — keep collecting;
+      consumption lands when A/Batch surface supports it (post-merge note).
 
-1. `scripts/record_fixture.py`: a **standalone** script (its own token
-   implementation per `docs/technical/02` — do not import from `src/`, which may not
-   exist yet) that, given a post URL/id, computes the token, calls
-   `https://cdn.syndication.twimg.com/tweet-result?id=<id>&lang=en&token=<token>`,
-   and saves the JSON response to `tests/fixtures/syndication/<name>.json` with a
-   small header (recorded-at, id, source URL).
-2. Record fixtures for: normal video post, GIF post, photo-only post, multi-video
-   post, tombstone (`TweetTombstone`), **sensitive/age-gated video post** (expect
-   404/empty — that IS the fixture: save the failure shape), deleted post (404),
-   HLS-only post if you can find one. Find candidate posts via web search of public
-   accounts; if a category is genuinely unfindable (e.g. no fresh upload at spike
-   time), note it in `tests/fixtures/README.md` and move on.
-3. Token goldens: for ~10 real tweet ids, compute the token and **verify each with a
-   live GET (expect HTTP 200)**. Compute via Node if available:
-   `node -e "console.log(((Number(process.argv[1])/1e15)*Math.PI).toString(36).replace(/(0+|\.)/g,''))" <id>`
-   otherwise port the exact f64→base-36 algorithm from
-   `docs/technical/02-media-resolution.md`. Known-good anchor: id `"20"` →
-   `"6dq1a2xwd9"` (verified 2026-10-17). Save
-   `tests/fixtures/golden_tokens.json` (`[{"id": "...", "token": "..."}]`) —
-   Agent A's `test_token.py` will consume it.
+### Priority 2 — M6 config & logging (your files only)
 
-**Acceptance:** fixtures + goldens committed on your branch, `README.md` in
-`tests/fixtures/` documents each file and how it was obtained, and a note is in
-`COORDINATION.md` telling Agent A they're ready.
+- [ ] `config.py`: full precedence **CLI overrides > `XDL_*` env > `config.toml` >
+      defaults** per `docs/technical/07` (mechanical `XDL_` + `__` nesting mapping);
+      TOML at `platformdirs.user_config_dir("xdl", appauthor=False)`; tolerate
+      absent file; unknown-key warning. Keep `Settings.load(overrides)` signature —
+      A's CLI depends on it.
+- [ ] `src/xdl/report/logging.py`: `setup_logging(settings)` — rich console handler
+      (level from `-v/-vv`), rotating file handler (5 MB × 3) at
+      `<appdir>/logs/xdl.log` always-on INFO, cookie-value redaction guard.
+      A wires the call into `cli.main()` from their lane; if their branch hasn't
+      landed when you finish, note it in `COORDINATION.md` (one-liner).
+- [ ] `config.toml` documented template (comments, matching `docs/technical/07`)
+      generated/written to `docs/` or README — you own both.
 
-### Priority 2 — `src/xdl/media/hls.py`
+### Priority 3 — docs reconciliation (make docs match shipped reality)
 
-Per `docs/technical/04`: master-playlist parsing (`#EXT-X-STREAM-INF`
-BANDWIDTH/RESOLUTION), child-playlist selection, the progressive-first selection
-helper (HLS only when no MP4 or best MP4 < 720p), DRM detection (`EXT-X-KEY` method
-≠ AES-128 → `DRM_UNSUPPORTED`), and the ffmpeg argv builder (`-c copy`,
-`+faststart`, `-nostdin`, UA header, `.part` output path). Unit tests in
-`tests/unit/test_hls.py` using fixture `.m3u8` text files; **assert on argv arrays —
-no live ffmpeg runs** (one opt-in `@pytest.mark.live` smoke test is fine).
+- [ ] `docs/04-project-structure.md`: sync model sketches to shipped code (A's
+      deviations 1–5: `select() -> list[Chosen]`, `run_batch` kwargs,
+      `Author.verified`, `BatchRequest.quality/dry_run`, semaphore model).
+- [ ] `docs/02-architecture.md`: semaphore-bounded item tasks (A's deviation 3);
+      `docs/technical/07`: shipped CLI surface (`xdl [OPTIONS] URLS...` default
+      command, subcommands).
+- [ ] `docs/05-implementation-plan.md`: tick M0–M3 checkboxes, annotate M1 spike
+      outcomes (HLS-only synthesized, token goldens 13/13, sensitive-served
+      finding).
+- [ ] `README.md`: refresh status + quickstart for what exists now (you own it this
+      round); `CHANGELOG.md`: initial entry (M0–M3 summary + field findings).
+- [ ] Do NOT touch the superseded banners in `docs/technical/02` and `04` — they
+      are correct as-is.
 
-### Priority 3 — M3 web UI (against the frozen contract)
+### Priority 4 — manual test matrix (`docs/technical/09`)
 
-`src/xdl/ui/` per `docs/technical/10-local-web-ui.md`:
+Run every runnable row on Windows against the real CLI (use
+`scripts/find_candidates.py --check <id>` to source fresh public posts; network use
+allowed here — never in pytest). Record results per row in `COORDINATION.md`
+(pass/fail/blocked + why). Known-live constraints from your round-1 spike still
+apply: httpx only (never urllib), ~1 req/s pacing, `timeline-profile` endpoint is
+dead (429) — don't build on it.
 
-- `app.py`: `create_app(settings, run_batch) -> FastAPI` with all documented
-  endpoints (`GET /`, `POST /jobs`, `POST /analyze`, `GET /jobs`,
-  `GET /jobs/{id}`, `GET /jobs/{id}/events` SSE, `POST /jobs/{id}/retry`,
-  `POST /items/{tweet_id}/reveal`), Flow A (auto-batch) and Flow B
-  (Analyze-then-pick), queue cards (thumbnail/@handle/snippet/per-item status) and
-  toolbar.
-- Security posture exactly as specced: binds `127.0.0.1` only and **hard-fails**
-  otherwise; `Host`-header check (403 otherwise); CSP `default-src 'self'`;
-  500-URL cap per `POST /jobs`; no directory listing of the downloads tree.
-- `templates/index.html` (Jinja2) + `static/` minimal CSS/JS with htmx-style SSE
-  consumption. No build step, no npm.
-- Tests in `tests/ui/test_serve.py` using FastAPI's `TestClient` and a
-  **`StubOrchestrator`** (`tests/ui/stub_orchestrator.py`) that implements the
-  documented `run_batch(BatchRequest) -> BatchReport` + `ProgressEvent` shapes from
-  `docs/04-project-structure.md`. This is the key to parallelism: you code against
-  the documented contract, not Agent A's branch. Leave a marked TODO: swap stub →
-  real core after integration.
+## Hard rules (unchanged from round 1)
 
-**Acceptance:** the plan's M3 acceptance criteria, with "paste 5 URLs in the
-browser" demonstrated against the stub; all UI tests hermetic and green.
+- `pytest` hermetic — no network, no live ffmpeg, no live browser inside tests.
+- `ruff` + `mypy` clean on files you own; full `pytest` green at every commit.
+- Layering rules 1–6 (`docs/04`): `ui/` and `config.py` import `app`/`models`/
+  `report` shapes only; no engine/resolver internals in the UI layer.
+- Deviations from specs: smallest sensible choice + note under `## Agent B notes`.
 
-## Hard rules
+## Setup & git
 
-- **Tests are hermetic:** no network and no live ffmpeg inside `pytest`. Network is
-  allowed only in `scripts/**` (the spike).
-- `ruff` + `mypy` clean on the files you own.
-- Layering rules 1–6 from `docs/04`: `ui/` is a frontend — it imports
-  `app`/`config`/`report` shapes only (via the injected `run_batch` callable; the
-  stub exists precisely so you don't need A's code).
-- Do not silently deviate from specs: smallest sensible choice + note in
-  `COORDINATION.md` under `## Agent B notes`.
+- Work in your separate clone `../downloader-agent-b` (Windows, Git Bash):
+  `git fetch origin && git checkout main && git pull && git checkout -b feat/ui-2`
+  and stay on it. Fresh `pip install -e ".[dev]"`.
+- Commits prefixed `[ui2]`; push `-u origin feat/ui-2` at the end (and
+  periodically). **Never** merge/rebase onto `main` or `feat/core-2`.
 
-## Finish line for this session
+## Finish line
 
-1. Priority 1 fully complete (it unblocks the other lane).
-2. Priorities 2–3 as far as you get, each stopping point green.
-3. Handoff note in `COORDINATION.md` under `## Agent B notes`; push `feat/ui-spike`;
-   print a final summary (done / tested / deferred).
+1. Priority 1 fully done; 2–4 as far as you get, green at each stop.
+2. Handoff under `## Agent B notes`: done/tested/deferred, matrix results, bugs
+   filed against A's lane.
+3. Push the branch; print a final summary.

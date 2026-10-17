@@ -13,13 +13,14 @@ from __future__ import annotations
 import json
 import re
 import sys
+from pathlib import Path
 from typing import Any
 
 import httpx
 
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 # re-use the standalone token/features implementation
-from record_fixture import DEFAULT_UA, FEATURES, SYNDICATION_URL, get_token  # noqa: E402
+from record_fixture import DEFAULT_UA, FEATURES, SYNDICATION_URL, get_token
 
 TIMELINE_URL = "https://syndication.twitter.com/srv/timeline-profile/screen-name/{name}"
 
@@ -81,7 +82,10 @@ def classify(tweet_id: str) -> dict[str, Any]:
         1
         for m in media
         if m.get("video_info")
-        and any(v.get("content_type") == "video/mp4" for v in (m.get("video_info") or {}).get("variants") or [])
+        and any(
+            v.get("content_type") == "video/mp4"
+            for v in (m.get("video_info") or {}).get("variants") or []
+        )
     )
     if n_videos == 0:
         out["type"] = "photo-only" if kinds else "no-media"
@@ -112,7 +116,8 @@ def main(argv: list[str]) -> int:
         rows = [classify(i) for i in dict.fromkeys(ids)]
     for r in rows:
         print(f"{r['id']:<20} {r['status']} {r['type']:<12} {r['detail']}")
-    json.dump(rows, open(".tmp_candidates.json", "w", encoding="utf-8"), indent=1)
+    with Path(".tmp_candidates.json").open("w", encoding="utf-8") as fh:
+        json.dump(rows, fh, indent=1)
     return 0
 
 
