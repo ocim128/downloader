@@ -193,3 +193,56 @@ async def test_network_error_maps_to_network(tmp_path: Path) -> None:
         with pytest.raises(XdlError) as exc:
             await fetch(job(tmp_path), c)
     assert exc.value.code is ErrorCode.NETWORK
+
+
+# --------------------------------------------------------------------------- #
+# cancellation (docs/technical/03: checked per chunk; .part retained)
+# --------------------------------------------------------------------------- #
+
+
+async def test_cancel_before_request_touches_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from xdl.models import CancelToken
+
+    calls: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        return httpx.Response(200, content=BODY)
+
+    token = CancelToken()
+    token.cancel()
+    async with client(handler) as c:
+        with pytest.raises(XdlError) as exc:
+            await fetch(job(tmp_path), c, cancel=token)
+    assert exc.value.code is ErrorCode.CANCELLED
+    assert calls == []  # checked before the request goes out
+    assert not (tmp_path / "x" / "user" / "video.mp4.part").exists()
+
+
+async def test_cancel_midstream_keeps_part(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import xdl.engine.downloader as dl
+    from xdl.models import CancelToken
+
+    monkeypatch.setattr(dl, "_CHUNK", 50)  # BODY is 300 bytes -> 6 chunks
+
+    token = CancelToken()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=BODY,
+                              headers={"content-length": str(len(BODY))})
+
+    def cb(delta: int, total: int | None) -> None:
+        token.cancel()  # SIGINT lands after the first chunk boundary
+
+    async with client(handler) as c:
+        with pytest.raises(XdlError) as exc:
+            await fetch(job(tmp_path), c, cb=cb, cancel=token)
+    assert exc.value.code is ErrorCode.CANCELLED
+    dest = tmp_path / "x" / "user" / "video.mp4"
+    part = dest.with_name(dest.name + ".part")
+    assert part.exists() and part.read_bytes() == BODY[:50]  # resumable
+    assert not dest.exists()  # never a half-file posing as complete

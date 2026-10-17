@@ -150,3 +150,28 @@ def test_rebuild_from_disk_round_trip(state: StateStore, tmp_path: Path) -> None
 def test_wal_mode(state: StateStore, tmp_path: Path) -> None:
     mode = state._conn.execute("PRAGMA journal_mode").fetchone()[0]
     assert str(mode).lower() == "wal"
+
+
+# --------------------------------------------------------------------------- #
+# circuit-breaker marker (docs/technical/08)
+# --------------------------------------------------------------------------- #
+
+
+def test_mark_tweet_incomplete_if_untracked_inserts(state: StateStore) -> None:
+    state.mark_tweet_incomplete_if_untracked("99001")
+    rows = state.lookup("99001")
+    assert len(rows) == 1
+    assert rows[0].status == "incomplete"
+    assert rows[0].error == "SKIPPED_CIRCUIT_OPEN"
+    # retry-failed surfaces it
+    assert [r.tweet_id for r in state.failed_items()] == ["99001"]
+
+
+def test_marker_never_clobbers_existing_history(state: StateStore) -> None:
+    from xdl.models import DownloadRow
+
+    state.record(DownloadRow(tweet_id="99002", media_index=1,
+                             file_path=Path("a.mp4"), status="ok"))
+    state.mark_tweet_incomplete_if_untracked("99002")
+    (row,) = state.lookup("99002")
+    assert row.status == "ok"  # the ok row survived untouched

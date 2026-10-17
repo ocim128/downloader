@@ -94,3 +94,39 @@ def test_default_gap_jitter_range() -> None:
     for _ in range(50):
         t = ThrottleState()
         assert 0.2 <= t.min_gap <= 0.5
+
+
+# --------------------------------------------------------------------------- #
+# 429 escalation (docs/technical/08): 3 x 429 within 60 s -> pause >= 120 s
+# --------------------------------------------------------------------------- #
+
+
+async def test_report_429_escalation_on_third(clock: FakeClock) -> None:
+    t = ThrottleState(min_gap=0.0)
+    t.report_429("1")
+    t.report_429("1")
+    assert t.pause_remaining < 35.0  # two alone: just the 30 s floor
+    t.report_429("1")  # third within 60 s
+    assert t.pause_remaining >= 119.0  # max(30 x 2, 120)
+
+
+async def test_report_429_escalation_doubles_long_retry_after(clock: FakeClock) -> None:
+    t = ThrottleState(min_gap=0.0)
+    for _ in range(3):
+        t.report_429("100")  # ra=100 -> escalated pause = max(200, 120)
+    assert t.pause_remaining >= 195.0
+
+
+async def test_escalation_window_expires_after_60s(clock: FakeClock) -> None:
+    t = ThrottleState(min_gap=0.0)
+    t.report_429("1")
+    t.report_429("1")
+    clock.now += 61.0  # the first two age out of the 60 s window
+    t.report_429("1")  # only ONE recent -> no escalation
+    assert t.pause_remaining < 35.0
+
+
+def test_report_pause_direct_api() -> None:
+    t = ThrottleState(min_gap=0.0)
+    t.report_pause(45.0)  # orchestrator-reported resolve-stage 429
+    assert 40.0 <= t.pause_remaining <= 45.0

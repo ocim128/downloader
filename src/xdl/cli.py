@@ -339,6 +339,7 @@ def retry_failed(
 
 @app.command(
     name="serve",
+    add_help_option=False,  # let the UI runner's argparse own --help
     context_settings={"ignore_unknown_options": True, "allow_extra_args": True},
 )
 def serve(ctx: typer.Context) -> None:
